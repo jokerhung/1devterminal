@@ -1,0 +1,126 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+.next/
+out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+.cursor/*
+.agents/*
+docs/*
+worker/node_modules/*
+worker/.wrangler/*
+worker/package-lock.json
+package-lock.json
+worker/src/handlers/static.js
+landing/template.html
+.devcontainer/devcontainer.json
+dist/*
+9remote-*.tgz
+*/.next/*
+*/node_modules/*
+client/out/*
+cli/dist/*
+.docs/*
+worker/wrangler.toml
+desktop/src-tauri/target/debug/*
+desktop/src-tauri/target/*
+desktop/src-tauri/target-linux/*
+worker/wrangler.toml
+.bin/*
+web/.open-next/*
+host/dist/*
+web/.wrangler/*
+expo/ios/*
+host/ui/dist/*
+host/ui/dist/index.html
+host/ui/dist/*
+.seeding/*
+gitbook/.wrangler/*
+.source/*
+web/public/models/25meiko_collabo01_t02/motion/s-common-blushed01.motion3.json
+.release/CheckList.md
+source/*
+benchmark/output/*
+benchmark/results/*
+.win/*
+.win/fix.txt
+web/wrangler.old.toml
+web/wrangler.toml
+.agents.vn/*
+.loop/*
+./source
+web/graphify-out/*
+host/graphify-out/*
+.devloop/
+
+# Bench output: logs + dump images with local machine paths
+host/remote-bench/out/*
+# Former submodule, kept locally only
+9remote_public/
+# OTA code signing certificate — public, must be committed (referenced by expo/app.json)
+!expo/certs/*.pem
+desktop/release/*
+expo/fastlane/metadata/review_information/demo_account_required.txt
+web/.secrets-hash-*
+expo/.wrangler/*
+
+# Mobile app moved to decolua/9remote-expo (private)
+expo/
+
+# Local-only marketing notes
+.marketing/
+
+# CodeGraph dev tool
+codegraph.json
+.codegraph/
+
+# Static-export build mirror (scripts/buildWebStatic.mjs)
+web/.staticBuild/
+.claude/skills/*
+
+# Local Next.js tunnel/dev output
+.next-tunnel/
+**/.next-tunnel/
+next-dev.log
+**/next-dev.log
+# Desktop build output
+desktop/dist/
