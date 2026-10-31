@@ -5,13 +5,17 @@ import { approveDevice, markTailProven, hasProvenTail, gateDevice, isDeviceKicke
 import { matchesPairingTail, consumePairingTail, getActivePairing } from "./pairingCode.js";
 import { CHANNELS, ADMISSION, DEVICE_GATE, TAIL_VERDICT, TAIL_REJECT_REASON } from "./transportConstants.js";
 import { tailOf, headOf } from "../cli/utils/apiKey.js";
-import { loadKey } from "../cli/utils/state.js";
+import { loadKey, findKey } from "../cli/utils/state.js";
 import { openSealedTail } from "./hostKey.js";
 
 const logger = createLogger("deviceAuth");
 
 function hostTail() {
   return tailOf(loadKey()?.key || "");
+}
+
+function recordFor(keyHead) {
+  return keyHead ? findKey(keyHead) : loadKey();
 }
 
 export function isTailProofEnabled() {
@@ -48,10 +52,10 @@ function setVerdict(deviceId, keyHead, state, reason = null) {
 }
 
 // Submit tail proof from any carrier (handshake or data channel).
-export function submitTailProof(deviceId, tail, { pairing = false, tempKey = null } = {}) {
-  const keyHead = headOf(loadKey()?.key || "");
+export function submitTailProof(deviceId, tail, { pairing = false, tempKey = null, keyHead = null } = {}) {
+  keyHead = keyHead || headOf(loadKey()?.key || "");
   if (!deviceId || (!isTailProofEnabled() && !pairing)) return false;
-  const proof = pairing ? consumePairingTail(tail, tempKey) : { match: verifyKeyTail(tail) };
+  const proof = pairing ? consumePairingTail(tail, tempKey) : { match: verifyKeyTail(tail, keyHead) };
   if (proof.match) {
     setVerdict(deviceId, keyHead, TAIL_VERDICT.proven);
     markTailProven(deviceId, keyHead);
@@ -69,16 +73,16 @@ export function isProvingExpired(deviceId) {
   return !!v && v.state === TAIL_VERDICT.proving && Date.now() - v.since > PROOF_DEADLINE_MS;
 }
 
-export function verdictStateOf(deviceId) {
-  return verdictOf(deviceId, headOf(loadKey()?.key || ""))?.state || null;
+export function verdictStateOf(deviceId, keyHead = headOf(loadKey()?.key || "")) {
+  return verdictOf(deviceId, keyHead)?.state || null;
 }
 
 const proofWaiters = new Map();
 
 // Run fn once device has proven tail.
-export function onTailProven(deviceId, fn, onExpired) {
+export function onTailProven(deviceId, fn, onExpired, keyHead = headOf(loadKey()?.key || "")) {
   if (!deviceId || !isTailProofEnabled()) return fn();
-  if (verdictStateOf(deviceId) === TAIL_VERDICT.proven) return fn();
+  if (verdictStateOf(deviceId, keyHead) === TAIL_VERDICT.proven) return fn();
   if (!proofWaiters.has(deviceId)) proofWaiters.set(deviceId, new Set());
   proofWaiters.get(deviceId).add(fn);
   if (!onExpired) return;
@@ -113,24 +117,25 @@ export function noteTailFailure(keyHead) {
   return Math.min(TAIL_PENALTY_BASE_MS * 2 ** (over - 1), TAIL_PENALTY_MAX_MS);
 }
 
-export function verifyPresentedTail({ tail, tempKey } = {}) {
+export function verifyPresentedTail({ tail, tempKey, keyHead = null } = {}) {
   const pairing = !!tempKey;
   if (!pairing && !isTailProofEnabled()) return { ok: true };
   if (!tail) return { ok: false, reason: TAIL_REJECT_REASON.mismatch, penaltyMs: 0 };
 
-  const proof = pairing ? consumePairingTail(tail, tempKey) : { match: verifyKeyTail(tail) };
+  const proof = pairing ? consumePairingTail(tail, tempKey) : { match: verifyKeyTail(tail, keyHead) };
   if (proof.match) return { ok: true };
   return {
     ok: false,
     reason: TAIL_REJECT_REASON.mismatch,
     burned: !!proof.burned,
-    penaltyMs: noteTailFailure(headOf(loadKey()?.key || ""))
+    penaltyMs: noteTailFailure(keyHead || headOf(loadKey()?.key || ""))
   };
 }
 
 // Admission gate: authenticate key, then authorize device.
-export function admissionGate(deviceId, presented, { provenSocket = false, tempKey = null } = {}) {
-  const keyHead = headOf(loadKey()?.key || "");
+export function admissionGate(deviceId, presented, { provenSocket = false, tempKey = null, keyHead: requestedKeyHead = null } = {}) {
+  const keyHead = requestedKeyHead || headOf(loadKey()?.key || "");
+  if (!recordFor(keyHead)?.key) return { step: "auth", decision: ADMISSION.reject, reason: TAIL_REJECT_REASON.mismatch };
   const gate = gateDevice(deviceId);
 
   if (gate === DEVICE_GATE.rejected) {
@@ -150,7 +155,7 @@ export function admissionGate(deviceId, presented, { provenSocket = false, tempK
     if (verdict?.state === TAIL_VERDICT.rejected && presented === undefined) {
       return { step: "auth", decision: ADMISSION.reject, reason: verdict.reason };
     }
-    const matches = (t) => (pairingSession ? matchesPairingTail(t) : verifyKeyTail(t));
+    const matches = (t) => (pairingSession ? matchesPairingTail(t) : verifyKeyTail(t, keyHead));
     const proven = provenSocket
       || verdict?.state === TAIL_VERDICT.proven
       || (presented !== undefined && matches(presented));
@@ -173,8 +178,8 @@ export function admissionGate(deviceId, presented, { provenSocket = false, tempK
 }
 
 // Constant-time key tail verification.
-export function verifyKeyTail(presentedTail) {
-  const tail = hostTail();
+export function verifyKeyTail(presentedTail, keyHead = null) {
+  const tail = tailOf(recordFor(keyHead)?.key || "");
   if (!tail || !presentedTail) return false;
   const a = Buffer.from(String(presentedTail), "utf8");
   const b = Buffer.from(tail, "utf8");
@@ -202,10 +207,10 @@ export function handleTailProof(socket, data) {
   if (!deviceId || (!isTailProofEnabled() && !pairing)) return true;
   const tail = presentedTailOf(data, openSealedTail);
   if (tail === undefined) return true;
-  if (submitTailProof(deviceId, tail, { pairing, tempKey: presentedTemp })) return true;
+  if (submitTailProof(deviceId, tail, { pairing, tempKey: presentedTemp, keyHead: headOf(socket?.handshake?.auth?.apiKey || socket?.data?.auth?.apiKey || "") })) return true;
   socket.data.tailReject = {
     reason: tail === null ? TAIL_REJECT_REASON.sealUnreadable : TAIL_REJECT_REASON.mismatch,
-    penaltyMs: noteTailFailure(headOf(loadKey()?.key || ""))
+    penaltyMs: noteTailFailure(headOf(socket?.data?.auth?.apiKey || socket?.handshake?.auth?.apiKey || loadKey()?.key || ""))
   };
   return false;
 }

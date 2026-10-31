@@ -138,7 +138,7 @@ export class ProtocolManager {
         }
       }
       this._rtcSignalingHandler?.(msg);
-    });
+    }, this._auth.apiKey);
     this._offGlobalReady = onSignalingReady(() => this._flushSigBuffer());
   }
 
@@ -372,6 +372,12 @@ export class ProtocolManager {
   }
 
   _sendControl(event, args, ackId) {
+    if (!this._host?.data?.approved && !event.startsWith("device:") && event !== "srvCaps" && event !== "rtc:enabled") return;
+    const access = this._host?.data?.workspaceAccess;
+    if (access) {
+      args = access.output(event, args);
+      if (!args) return;
+    }
     const adapter = this._pickAdapter(CHANNELS.control);
     if (!adapter) {
       this._buffer.push({ event, args, ackId });
@@ -473,7 +479,7 @@ export class ProtocolManager {
   }
 
   _sendSignaling(msg) {
-    if (isSignalingReady() && sendGlobalSignaling({ ...msg, to: this._deviceId })) return;
+    if (isSignalingReady(this._deviceId) && sendGlobalSignaling({ ...msg, to: this._deviceId })) return;
     if (msg.type === "answer") {
       this._sigBuffer = this._sigBuffer.filter((m) => m.type !== "answer" && m.type !== "ice");
     }

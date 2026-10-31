@@ -9,7 +9,7 @@ const HOME = os.homedir();
 // existing ancestor, resolves its realpath (which follows symlinks), then re-appends
 // the non-existent tail. Avoids the lexical `path.resolve` fallback that let a
 // symlinked path escape detection when its target file did not yet exist.
-function canonicalize(p) {
+export function canonicalize(p) {
   if (!p) return null;
   const resolved = p.startsWith("~") ? p.replace(/^~/, HOME) : p;
   const abs = path.resolve(resolved);

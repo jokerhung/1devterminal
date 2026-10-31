@@ -19,7 +19,8 @@ initLogger();
 const logger = createLogger("server");
 import { startTransportServer, getIO } from "./transport/server.js";
 import { initializeTerminal } from "./features/terminal/terminalSocket.js";
-import { matchesLocalKey } from "./cli/utils/apiKey.js";
+import { headOf } from "./cli/utils/apiKey.js";
+import { getActivePairing } from "./lib/pairingCode.js";
 import { generateLocalToken } from "./lib/localToken.js";
 import { isNewerVersion } from "./cli/utils/updateChecker.js";
 
@@ -37,7 +38,7 @@ import {
 } from "./api/ui.js";
 import { broadcastServerInfo, setConnectCheckHandler } from "./features/terminal/terminalSocket.js";
 import { UPDATE } from "./cli/config.js";
-import { handleOneTimeKey, handleRegenerate, handleSignalingRetry } from "./api/key.js";
+import { handleOneTimeKey, handleRegenerate, handleSignalingRetry, handleCreatePermanentKey, handleListPermanentKeys, handleUpdateKeyPermissions, handleRevokePermanentKey } from "./api/key.js";
 import { handleApprove, handleReject, handlePending, handleApproved, handleRemove, handleDisconnect, handleRejected, handleApproveRejected, handleClearRejected, handleGetAutoApprove, handleSetAutoApprove, handleSetLabel } from "./api/device.js";
 import { handleNotifyPost, handleNotifyGet } from "./api/notify.js";
 import { handleMcpPost } from "./api/mcp.js";
@@ -47,7 +48,7 @@ import { handleDesktopUnlockGet, handleDesktopUnlockInstall, handleDesktopUnlock
 import { handleSessionsList, handleSessionDelete } from "./api/sessions.js";
 import { handleSystemStats } from "./api/system.js";
 import * as sleepInhibitor from "./lib/sleepInhibitor.js";
-import { loadSettings, loadKey } from "./cli/utils/state.js";
+import { loadSettings, loadKey, findKey } from "./cli/utils/state.js";
 import { REMOTE_CONFIG } from "./features/remote/REMOTE_CONFIG.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -194,7 +195,7 @@ async function handleVerifyKey(req, res) {
   if (!data) return;
 
   const { verifyPresentedTail } = await import("./lib/deviceAuth.js");
-  const result = verifyPresentedTail({ tail: data.tail, tempKey: data.tempKey });
+  const result = verifyPresentedTail({ tail: data.tail, tempKey: data.tempKey, keyHead: headOf(data.apiKey || "") });
   if (result.ok) { jsonOk(res, { ok: true }); return; }
   // logger, not pushUiLog: the SSE-only push is lost to any UI that opens
   // after the attempt, while the logger line persists (file + /logs + SSE).
@@ -228,7 +229,14 @@ async function handleVerifyKey(req, res) {
 
 const ROUTES = [
   // Public routes (accessible via tunnel)
-  { path: "/api/health",           method: "GET",  public: true, handler: (req, res) => jsonOk(res, { status: "ok", timestamp: Date.now() }) },
+  { path: "/api/health",           method: "GET",  public: true, handler: (req, res, { query }) => {
+    res.setHeader("Cache-Control", "no-store");
+    const data = { status: "ok", timestamp: Date.now() };
+    // Probe only the routing part before a client sends this host a private tail.
+    if (typeof query.apiKey === "string") data.recognizesKey = !!findKey(query.apiKey);
+    if (typeof query.tempKey === "string") data.recognizesKey = !!query.tempKey && query.tempKey.toUpperCase() === getActivePairing()?.tempKey?.toUpperCase();
+    jsonOk(res, data);
+  } },
   { path: "/api/version",          method: "GET",  public: true, handler: (req, res) => {
     const version = typeof __CLI_VERSION__ !== "undefined"
       ? __CLI_VERSION__
@@ -257,6 +265,10 @@ const ROUTES = [
   // Key management (localhost-only)
   { path: "/api/key/one-time",     method: "POST", handler: handleOneTimeKey },
   { path: "/api/key/regenerate",   method: "POST", handler: handleRegenerate },
+  { path: "/api/key/create",      method: "POST", handler: handleCreatePermanentKey },
+  { path: "/api/key/list",        method: "GET",  handler: handleListPermanentKeys },
+  { path: "/api/key/permissions", method: "POST", handler: handleUpdateKeyPermissions },
+  { path: "/api/key/revoke",      method: "POST", handler: handleRevokePermanentKey },
   { path: "/api/signaling/retry",  method: "POST", handler: handleSignalingRetry },
 
   // Device approval (localhost-only)

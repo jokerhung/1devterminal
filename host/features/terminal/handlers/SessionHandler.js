@@ -205,8 +205,10 @@ function attachPtyListeners(ptyProcess, sessionId, sessionData, io, sessions) {
   });
 }
 
-export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWorkspaces, sessionOrder = []) {
+export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWorkspaces, sessionOrder = [], access = {}) {
   const persist = () => saveWorkspaces(workspaces, sessionWorkspaces, sessionOrder);
+  const unrestricted = access.unrestricted !== false;
+  const allowed = (workspaceId) => unrestricted || (workspaceId == null ? false : access.workspaceIds.has(workspaceId));
 
   // Both names are broadcast during transition so clients on previous versions refresh.
   const broadcastChanged = () => {
@@ -252,6 +254,7 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
           if (liveCwd) { cwd = liveCwd; if (session.cwd !== liveCwd) session.cwd = liveCwd; }
         }
         const workspaceId = sessionWorkspaces[id] || null;
+        if (!allowed(workspaceId)) continue;
         list.push({
           id, name: session.name, createdAt: session.createdAt, restored: session.restored || false,
           shellId: session.shellId, shellLabel: session.shellLabel, cwd,
@@ -279,10 +282,11 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
 
   const listWorkspaces = (callback) => {
     capsLogger.info(`[diag] getWorkspaces arrived+ack → ${workspaces.size} workspaces`);
-    callback(Array.from(workspaces.values()));
+    callback(Array.from(workspaces.values()).filter((w) => allowed(w.id)));
   };
 
   const createWorkspace = ({ name, path: wsPath }, callback) => {
+    if (!unrestricted) return callback({ success: false, error: "This key cannot create workspaces" });
     // Validate path points to a real directory if supplied.
     let resolvedPath = null;
     if (wsPath) {
@@ -315,6 +319,7 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
   const renameWorkspace = ({ workspaceId, groupId, name }, callback) => {
     const workspace = workspaces.get(workspaceId || groupId);
     if (!workspace) return callback({ success: false, error: "Workspace not found" });
+    if (!allowed(workspace.id)) return callback({ success: false, error: "Workspace access denied" });
     workspace.name = name;
     persist();
     broadcastChanged();
@@ -323,6 +328,7 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
 
   const deleteWorkspace = async ({ workspaceId, groupId }, callback) => {
     const id = workspaceId || groupId;
+    if (!allowed(id)) return callback({ success: false, error: "Workspace access denied" });
     if (!workspaces.delete(id)) return callback({ success: false, error: "Workspace not found" });
     try {
       const targetIds = Object.keys(sessionWorkspaces).filter((sid) => sessionWorkspaces[sid] === id);
@@ -355,6 +361,7 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
 
   const moveSession = ({ sessionId, workspaceId, groupId }, callback) => {
     const id = workspaceId ?? groupId;
+    if (!allowed(id)) return callback({ success: false, error: "Workspace access denied" });
     if (id && workspaces.has(id)) {
       sessionWorkspaces[sessionId] = id;
       const session = sessions.get(sessionId);
@@ -424,7 +431,14 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
   });
 
   // Claim conversation immediately on resume rather than waiting for first CLI hook.
-  socket.on("claimAgentSession", ({ sessionId, agent, conversationId } = {}, callback) => {
+  socket.on("claimAgentSession", async ({ sessionId, agent, conversationId } = {}, callback) => {
+    if (!unrestricted) {
+      const cwd = sessions.get(sessionId)?.cwd || sessions.get(sessionId)?.workspacePath;
+      const rows = await listAgentSessions({ cwd });
+      if (!rows.some((row) => row.sessionId === conversationId && row.agent === (engineFromAgent(agent) || agent) && access.canPath(row.cwd))) {
+        return callback?.({ success: false, error: "Workspace access denied" });
+      }
+    }
     claimResumedConversation(sessionId, { agent, sessionId: conversationId });
     queueSkillInstall(engineFromAgent(agent) || agent);
     syncAutoNames(io, sessions, sessionId);
@@ -446,6 +460,12 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
 
   socket.on("deleteAgentSession", async ({ agent, sessionId, cwd } = {}, callback) => {
     try {
+      if (!unrestricted) {
+        const rows = await listAgentSessions({ cwd });
+        if (!rows.some((row) => row.sessionId === sessionId && row.agent === agent && access.canPath(row.cwd))) {
+          return callback?.({ success: false, error: "Workspace access denied" });
+        }
+      }
       const ok = await deleteAgentSession({ agent, sessionId, cwd });
       callback?.({ success: ok });
     } catch (err) {
@@ -456,6 +476,7 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
   socket.on("createSession", async ({ name, shellId, workspaceId, groupId, cwd, nameIsAuto, agent, replaces }, callback) => {
     const sessionId = `session-${Date.now()}`;
     const wsId = workspaceId ?? groupId;
+    if (!allowed(wsId)) return callback?.({ success: false, error: "Workspace access denied" });
     const workspace = wsId ? workspaces.get(wsId) : null;
     const agentId = typeof agent === "string" ? agent : agent?.id || null;
     // Just-in-time browserUse skill — installs only if the feature is enabled.
@@ -472,6 +493,7 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
       const usable = (dir) => {
         try { return dir && !isSensitivePath(dir) && fs.existsSync(dir); } catch { return false; }
       };
+      if (!unrestricted && (!usable(workspace?.path) || (cwd && !usable(cwd)))) return callback?.({ success: false, error: "Workspace directory not found" });
       if (usable(workspace?.path)) resolvedCwd = workspace.path;
       if (usable(cwd)) resolvedCwd = cwd;
       const workspacePath = workspace?.path || null;
@@ -524,6 +546,8 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
     const joinCols = typeof payload === "object" ? payload?.cols : undefined;
     const joinRows = typeof payload === "object" ? payload?.rows : undefined;
     let session = sessions.get(sessionId);
+    const existingWorkspaceId = sessionWorkspaces[sessionId] || null;
+    if (!allowed(existingWorkspaceId)) return callback({ success: false, error: "Workspace access denied" });
 
     // Session gone (daemon killed / restarted, metadata lost) → recreate a fresh PTY in the same tab
     if (!session && PERSISTENCE_MODE === "daemon" && daemonClient.isConnected()) {

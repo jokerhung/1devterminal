@@ -28,6 +28,9 @@ import { broadcast } from "../../transport/broadcast.js";
 import { nextSeq, currentSeq, cacheChunk, clearSession as clearSeqSession } from "./seqStore.js";
 import { AUTO_NAME_DEBOUNCE_MS, OUTPUT_SLICE_BYTES, RESPAWN_RESUME_DELAY_MS } from "./constants.js";
 import { createLogger } from "../../lib/logger.js";
+import { findKey } from "../../cli/utils/state.js";
+import { headOf } from "../../cli/utils/apiKey.js";
+import { createWorkspaceAccess } from "../../lib/workspaceAccess.js";
 
 const termLogger = createLogger("terminal");
 
@@ -541,7 +544,7 @@ export async function setupTerminalHandlers(socket, io, apiKey) {
   socket.emit("srvCaps", { env2: 1 });
   socket.emit("serverInfo", setupTerminalSocket._buildServerInfo?.());
 
-  setupSessionHandlers(socket, io, sessions, workspaces, sessionWorkspaces, sessionOrder);
+  setupSessionHandlers(socket, io, sessions, workspaces, sessionWorkspaces, sessionOrder, socket.data.workspaceAccess);
 
   setupInputHandlers(socket, sessions);
   setupPushHandlers(socket, io);
@@ -563,4 +566,8 @@ export async function setupTerminalHandlers(socket, io, apiKey) {
     markSubscriptionDisconnected(socket.id);
     trackDisconnection();
   });
+}
+
+export function workspaceAccessFor(socket, apiKey) {
+  return createWorkspaceAccess({ record: findKey(headOf(apiKey || "")), localUi: socket.data.localUi === true, workspaces, sessions, sessionWorkspaces });
 }

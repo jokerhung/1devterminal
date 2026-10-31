@@ -100,15 +100,22 @@ export async function registerSession(apiKey, workerUrl, tunnelUrl, previousKey)
     // Carry the live tunnel over to the new key, else clients resolve nothing
     // until the next urlSync tick.
     if (tunnelUrl) {
-      await browserFetch(`${workerUrl}/api/session/update`, {
+      const updated = await browserFetch(`${workerUrl}/api/session/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey: headOf(apiKey), tunnelUrl,
           ...sessionMutationAuth({ apiKey: headOf(apiKey), tunnelUrl })
         })
-      }).catch(() => {});
+      });
+      if (!updated.ok) throw new Error(`Tunnel update HTTP ${updated.status}`);
     }
+    const fields = { apiKey: headOf(apiKey), online: true };
+    const heartbeat = await browserFetch(`${workerUrl}/api/session/heartbeat`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...fields, ...sessionMutationAuth(fields) })
+    });
+    if (!heartbeat.ok) throw new Error(`Heartbeat HTTP ${heartbeat.status}`);
     // Retire the replaced key only after the new one is live — a regenerated
     // key must actually revoke the old one, and leaving the row behind would
     // keep it usable (and pile up rows per machine).
@@ -127,4 +134,30 @@ export async function registerSession(apiKey, workerUrl, tunnelUrl, previousKey)
     logger.error(`Session registration failed: ${error?.message || error}`);
     return false;
   }
+}
+
+export async function unregisterSession(apiKey, workerUrl) {
+  const fields = { apiKey: headOf(apiKey) };
+  const response = await browserFetch(`${workerUrl}/api/session/delete`, {
+    method: "DELETE", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...fields, ...sessionMutationAuth(fields) })
+  });
+  if (!response.ok && response.status !== 404) throw new Error(`Key revocation HTTP ${response.status}`);
+}
+
+export async function refreshSession(apiKey, workerUrl, tunnelUrl) {
+  if (tunnelUrl) {
+    const fields = { apiKey: headOf(apiKey), tunnelUrl };
+    const response = await browserFetch(`${workerUrl}/api/session/update`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...fields, ...sessionMutationAuth(fields) })
+    });
+    if (!response.ok) throw new Error(`Session refresh HTTP ${response.status}`);
+  }
+  const fields = { apiKey: headOf(apiKey), online: true };
+  const response = await browserFetch(`${workerUrl}/api/session/heartbeat`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...fields, ...sessionMutationAuth(fields) })
+  });
+  if (!response.ok) throw new Error(`Session heartbeat HTTP ${response.status}`);
 }

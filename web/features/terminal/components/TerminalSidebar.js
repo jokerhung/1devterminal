@@ -31,9 +31,7 @@ import IconMenu from "@/shared/components/ui/IconMenu";
 import { orderedHostsOf, activeWsForHost } from "@/features/hosts/lib/fleetTree";
 import { makeFleetActions } from "@/features/hosts/lib/fleetActions";
 
-// Inside the host environment (Tauri shell, host-served page, or the
-// NEXT_PUBLIC_DEV_AGENT dev flag) the sidebar's brand row becomes the
-// pair-device button instead. The public web keeps the brand.
+// Show the pairing shortcut only in the host environment.
 const SHOW_PAIR_DEVICE = isHostEnvironment();
 
 // Second line of a terminal row lives in SessionMeta.js — shared with the mobile
@@ -240,6 +238,17 @@ function TerminalSidebar({
           <span className="text-[13px] font-semibold text-text truncate">9Remote</span>
         </button>
         <div className="flex items-center gap-0.5 flex-shrink-0">
+          {SHOW_PAIR_DEVICE && (
+            <button
+              onClick={() => { vibrate(); pushView({ type: "pair" }); }}
+              aria-label={t("connection.pairTab")}
+              aria-pressed={pairActive}
+              className={`p-1 rounded-[3px] transition-colors ${pairActive ? "bg-brand-500/10 text-brand-500" : "text-text-muted hover:text-text hover:bg-surface-2"}`}
+              title={t("connection.pairTab")}
+            >
+              <QrCode size={14} />
+            </button>
+          )}
           {/* Add another machine — kept here in the brand row, not down in the tree. */}
           <button
             onClick={() => { vibrate(); setAddHostOpen(true); }}
@@ -265,21 +274,6 @@ function TerminalSidebar({
           hooks differ). The -ml cancels the container's pl so each root sits at
           x=0 like every other host's, with its workspaces indented by treeCls. */}
       <div className="flex-1 min-h-0 overflow-y-auto modal-scrollable pt-1.5 pl-3.5 relative z-10">
-        {/* Agent-env only: the local dashboard (QR, devices, services) as an item above the hosts. */}
-        {SHOW_PAIR_DEVICE && (
-          <button
-            onClick={() => { vibrate(); pushView({ type: "pair" }); }}
-            aria-label="Pair Device"
-            className={`-ml-3.5 w-[calc(100%+0.875rem)] flex items-center gap-2 pl-[17px] pr-3 py-1 rounded-[6px] text-left transition-colors duration-150 ${
-              pairActive ? "bg-brand-500/10 text-brand-500" : "text-text-muted hover:text-text hover:bg-surface-2"
-            }`}
-            title="Pair Device"
-          >
-            {/* Icon follows text color (nav-item spec) — reads as a tree row, not a button */}
-            <QrCode size={15} className="flex-shrink-0" />
-            <span className="text-xs font-medium truncate">Pair Device</span>
-          </button>
-        )}
         {orderedHosts.map((h, i) => (
           <div key={h.key} className={i === 0 ? "-ml-3.5" : "mt-1 -ml-3.5 border-t border-border-subtle pt-1"}>
           {h.key === (currentHost?.key || "main") ? (

@@ -14,6 +14,8 @@ import { createLogger } from "./logger.js";
 const logger = createLogger("signaling");
 
 let _client = null;
+const _extraClients = new Map();
+const _peerRooms = new Map();
 // deviceId(client) → inbound handler (the PM serving that client)
 const _handlers = new Map();
 // deviceId(client) → buffered messages (offer + trickled ICE) that arrived
@@ -53,16 +55,25 @@ export function initSignalingGlobal(apiKey) {
     stopSignalingGlobal();
   }
   _roomKey = apiKey;
+  _client = createRoomClient(apiKey);
+  _client.connect();
+  logger.info(`global signaling client started (room=${apiKey.slice(0, 8)}...)`);
+}
+
+function createRoomClient(apiKey) {
   const doUrl = WORKER_URL.replace(/^http/, "ws") + "/signaling";
-  _client = new SignalingClient({
+  const client = new SignalingClient({
     url: doUrl, role: "agent", roomId: apiKey, apiKey,
     onReady: () => { for (const fn of _readyListeners) { try { fn(); } catch (e) { logger.error(`ready listener: ${e.message}`); } } }
   });
-  _client.on((msg) => {
-    const handler = _handlers.get(msg.from);
-    if (handler) {
+  client.on((msg) => {
+    if (typeof msg.from !== "string" || !msg.from) return;
+    if (_peerRooms.has(msg.from) && _peerRooms.get(msg.from) !== apiKey) return;
+    const registration = _handlers.get(msg.from);
+    if (registration) {
+      if (registration.apiKey !== apiKey) return;
       if (msg.type === "offer") logger.debug(`offer from ${msg.from?.slice(0, 8)} → PM`);
-      try { handler(msg); } catch (e) { logger.error(`signaling handler: ${e.message}`); }
+      try { registration.handler(msg); } catch (e) { logger.error(`signaling handler: ${e.message}`); }
       return;
     }
     // No PM yet (socket.io not connected for this client). Buffer offer + the
@@ -75,25 +86,53 @@ export function initSignalingGlobal(apiKey) {
     if (!_pendingOffers.has(msg.from) && _pendingOffers.size >= MAX_PENDING_PEERS) {
       const oldest = _pendingOffers.keys().next().value;
       _pendingOffers.delete(oldest);
+      if (!_handlers.has(oldest)) _peerRooms.delete(oldest);
       logger.warn(`pending buffer full — evicted ${oldest?.slice(0, 8)}`);
     }
     const queue = _pendingOffers.get(msg.from) || [];
     if (msg.type === "offer") queue.length = 0; // re-offer supersedes stale ICE
     if (queue.length < MAX_PENDING_PER_DEVICE) queue.push(msg);
     _pendingOffers.set(msg.from, queue);
+    _peerRooms.set(msg.from, apiKey);
     if (msg.type !== "offer") return;
     logger.debug(`offer from ${msg.from?.slice(0, 8)} — no PM, spawning RTC session`);
     try { _offerFallback?.(msg.from); } catch (e) { logger.error(`offer fallback: ${e.message}`); }
   });
-  _client.connect();
-  logger.info(`global signaling client started (room=${apiKey.slice(0, 8)}...)`);
+  return client;
+}
+
+export function syncSignalingKeys(keyHeads) {
+  const wanted = new Set(keyHeads.filter((key) => key && key !== _roomKey));
+  for (const [key, client] of _extraClients) {
+    if (wanted.has(key)) continue;
+    client.disconnect();
+    _extraClients.delete(key);
+    for (const [peer, room] of _peerRooms) {
+      if (room !== key) continue;
+      _peerRooms.delete(peer);
+      _pendingOffers.delete(peer);
+    }
+  }
+  for (const key of wanted) {
+    if (_extraClients.has(key)) continue;
+    const client = createRoomClient(key);
+    _extraClients.set(key, client);
+    client.connect();
+  }
+}
+
+export function signalingKeyForPeer(peerId) {
+  return _peerRooms.get(peerId) || null;
 }
 
 // Register the PM handler for a specific client deviceId. Flushes any offer that
 // arrived while the tunnel was still bringing socket.io up.
-export function onSignalingMessage(deviceId, handler) {
-  if (!deviceId) return () => {};
-  _handlers.set(deviceId, handler);
+export function onSignalingMessage(deviceId, handler, apiKey) {
+  if (!deviceId || !apiKey) return () => {};
+  if (_peerRooms.has(deviceId) && _peerRooms.get(deviceId) !== apiKey) _pendingOffers.delete(deviceId);
+  const registration = { handler, apiKey };
+  _handlers.set(deviceId, registration);
+  _peerRooms.set(deviceId, apiKey);
   const pending = _pendingOffers.get(deviceId);
   if (pending?.length) {
     _pendingOffers.delete(deviceId);
@@ -102,16 +141,24 @@ export function onSignalingMessage(deviceId, handler) {
       try { handler(msg); } catch (e) { logger.error(`flush pending: ${e.message}`); }
     }
   }
-  return () => { if (_handlers.get(deviceId) === handler) _handlers.delete(deviceId); };
+  return () => {
+    if (_handlers.get(deviceId) !== registration) return;
+    _handlers.delete(deviceId);
+    _pendingOffers.delete(deviceId);
+    _peerRooms.delete(deviceId);
+  };
 }
 
 export function sendSignaling(msg) {
-  return _client?.send(msg) || false;
+  const room = _peerRooms.get(msg.to);
+  const client = room && room !== _roomKey ? _extraClients.get(room) : _client;
+  return client?.send(msg) || false;
 }
 
 // Discard a buffered offer (device rejected — nothing will ever consume it).
 export function dropPending(peerId) {
   _pendingOffers.delete(peerId);
+  if (!_handlers.has(peerId)) _peerRooms.delete(peerId);
 }
 
 // Every buffered peer of a device ("deviceId:tab") — approval is per device, so
@@ -125,10 +172,12 @@ export function pendingPeersOf(deviceId) {
  *  its pre-open cap. No-op when it is already connected or was never started. */
 export function retrySignalingNow(reason = "?") {
   try { _client?.retryNow?.(reason); } catch (e) { logger.warn(`retrySignalingNow: ${e.message}`); }
+  for (const client of _extraClients.values()) client.retryNow?.(reason);
 }
 
-export function isSignalingReady() {
-  return !!_client?.ready;
+export function isSignalingReady(peerId) {
+  const room = _peerRooms.get(peerId);
+  return !!(room && room !== _roomKey ? _extraClients.get(room)?.ready : _client?.ready);
 }
 
 // Is an RTC offer buffered for this peer (arrived before a PM existed)? Used by the
@@ -146,6 +195,9 @@ export function getSignalingState() {
 
 export function stopSignalingGlobal() {
   try { _client?.disconnect(); } catch {}
+  for (const client of _extraClients.values()) client.disconnect();
+  _extraClients.clear();
+  _peerRooms.clear();
   _client = null;
   _roomKey = null;
   _handlers.clear();

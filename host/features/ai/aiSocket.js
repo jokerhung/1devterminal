@@ -348,6 +348,7 @@ export function setupAiHandlers(socket, io, manager = globalAiManager) {
       logger.info(`[ai] create session: ${sessionId} engine: ${engine} cwd: ${cwd}`);
       // Bind to a terminal's existing CLI conversation — the host knows which chat each terminal runs.
       const conv = getConversation(sessionId);
+      if (!socket.data?.workspaceAccess?.unrestricted && options.cliSessionId && options.cliSessionId !== conv?.id) throw new Error("Workspace access denied");
       const resumeId = options.cliSessionId || (engineFromAgent(conv?.agent) === engine ? conv.id : null);
       // Model defaults resolve host-side; adapters never read the machine's config.
       const spawnOptions = {

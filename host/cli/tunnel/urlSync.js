@@ -2,7 +2,7 @@ import { browserFetch, SERVER_PORT, RETRY_CONFIG } from "../../lib/constants.js"
 import { createLogger } from "../../lib/logger.js";
 import { retryForever } from "../utils/backoff.js";
 import { headOf } from "../utils/apiKey.js";
-import { loadSettings } from "../utils/state.js";
+import { loadSettings, loadKeys } from "../utils/state.js";
 import { sessionMutationAuth } from "../../lib/hostKey.js";
 import {
   startTunnelHealthWatchdog,
@@ -39,14 +39,16 @@ export async function updateTunnelUrl(selectedKey, tunnelUrl) {
     log: (m) => logger.warn(m),
     ctx,
     task: async () => {
-      const res = await browserFetch(`${WORKER_URL}/api/session/update`, {
+      const keys = new Set([headOf(selectedKey), ...loadKeys().map((record) => headOf(record.key))]);
+      const responses = await Promise.all([...keys].filter(Boolean).map((apiKey) => browserFetch(`${WORKER_URL}/api/session/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify((() => {
-          const fields = { apiKey: headOf(selectedKey), tunnelUrl, localIp: lanIp ? `${lanIp}:${SERVER_PORT}` : null };
+          const fields = { apiKey, tunnelUrl, localIp: lanIp ? `${lanIp}:${SERVER_PORT}` : null };
           return { ...fields, ...sessionMutationAuth(fields) };
         })()),
-      });
+      })));
+      const res = responses.find((response) => !response.ok) || responses[0];
       if (ctx.cancelled) return true;
       if (res.ok) {
         lastSyncedUrl = tunnelUrl;

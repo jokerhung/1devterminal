@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ConfirmDialog from "@/shared/components/ui/ConfirmDialog";
 import PromptDialog from "@/shared/components/ui/PromptDialog";
 import { isHostEnvironment } from "@/shared/utils/localOrigin";
@@ -83,6 +84,7 @@ function IconBtn({ icon, onClick, title, danger, busy }) {
     <button
       onClick={busy ? undefined : onClick}
       title={title}
+      aria-label={title}
       disabled={busy}
       className="glass-btn w-7 h-7 flex items-center justify-center flex-shrink-0"
       style={{
@@ -400,7 +402,7 @@ function formatCountdown(ms) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function DashboardQrCard({ qrUrl, oneTimeKey, oneTimeKeyExpiresAt, permanentKey, onGenerateOneTimeKey, onRegenerateKey }) {
+function DashboardQrCard({ qrUrl, oneTimeKey, oneTimeKeyExpiresAt, permanentKey, onGenerateOneTimeKey, onRegenerateKey, accessKeys, workspaces, onRefreshKeys }) {
   const canvasRef = useRef(null);
   const [now, setNow] = useState(() => Date.now());
   const [copiedKey, setCopiedKey] = useState(null);
@@ -520,8 +522,169 @@ function DashboardQrCard({ qrUrl, oneTimeKey, oneTimeKeyExpiresAt, permanentKey,
             <IconBtn icon="autorenew" onClick={() => setPopup("regen")} title="Regenerate permanent key" danger busy={busy === "permanent"} />
           </div>
         </div>
+        <KeyAccessSection keys={accessKeys} workspaces={workspaces} onRefresh={onRefreshKeys} />
       </div>
     </>
+  );
+}
+
+function KeyAccessSection({ keys, workspaces, onRefresh }) {
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingKey, setEditingKey] = useState(null);
+  const dialogTriggerRef = useRef(null);
+  const [name, setName] = useState("");
+  const [selected, setSelected] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [copied, setCopied] = useState(null);
+  const accessKeys = keys.filter((key) => !key.active);
+  const dialogOpen = createOpen || !!editingKey;
+
+  useEffect(() => {
+    if (dialogOpen || busy || !dialogTriggerRef.current) return;
+    dialogTriggerRef.current.focus();
+    dialogTriggerRef.current = null;
+  }, [dialogOpen, busy]);
+
+  const openDialog = (key, event) => {
+    dialogTriggerRef.current = event.currentTarget;
+    setEditingKey(key);
+    setCreateOpen(!key);
+    setName("");
+    setSelected((key?.workspaceIds || []).filter((id) => workspaces.some((workspace) => workspace.id === id)));
+    setError("");
+    setNotice("");
+  };
+  const closeDialog = () => {
+    if (busy) return;
+    setCreateOpen(false);
+    setEditingKey(null);
+    setError("");
+  };
+  const mutate = async (path, body, success) => {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await post(path, body);
+      const data = await response?.json();
+      if (!response?.ok || !data?.ok) throw new Error(data?.error || "Could not save the key. Try again.");
+      success?.(data);
+      if (data.warning) setNotice(data.warning);
+      await onRefresh?.();
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+  const create = () => mutate("/api/key/create", { name: name.trim() || "Shared key", workspaceIds: selected }, () => {
+    setName(""); setSelected([]); setCreateOpen(false); setNotice("Permanent key created. Use Copy key to share it.");
+  });
+  const update = () => mutate("/api/key/permissions", { keyHead: editingKey.keyHead, workspaceIds: selected }, () => {
+    setEditingKey(null);
+    setSelected([]);
+    setNotice("Workspace permissions saved. Connected clients must reconnect.");
+  });
+  const copy = async (key) => {
+    try {
+      await navigator.clipboard.writeText(key.key);
+      setCopied(key.keyHead);
+    } catch { setError("Could not copy the key to the clipboard."); }
+  };
+  const revoke = (key) => {
+    if (!window.confirm(`Revoke ${key.name || "this key"}?`)) return;
+    return mutate("/api/key/revoke", { keyHead: key.keyHead }, () => setNotice("Key revoked."));
+  };
+  const workspacePicker = (value, onChange, label) => (
+    <fieldset aria-label={label} disabled={busy} className="flex flex-wrap gap-2">
+      {workspaces.map((workspace) => (
+        <label key={workspace.id} className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg cursor-pointer" style={{ background: "var(--row-bg)", color: "var(--text-main)" }}>
+          <input type="checkbox" checked={value.includes(workspace.id)} onChange={(event) => onChange(event.target.checked ? [...value, workspace.id] : value.filter((id) => id !== workspace.id))} />
+          {workspace.name || workspace.path || workspace.id}
+        </label>
+      ))}
+    </fieldset>
+  );
+  return (
+    <div className="w-full flex flex-col gap-1.5 mt-4">
+      <div className="flex items-center justify-between gap-2 px-0.5">
+        <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Access keys{accessKeys.length > 0 ? ` (${accessKeys.length})` : ""}</span>
+        <button
+          type="button"
+          aria-label="Create access key"
+          aria-haspopup="dialog"
+          title="Create access key"
+          disabled={busy}
+          onClick={(event) => openDialog(null, event)}
+          className="glass-btn w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+      </div>
+      <div className="flex flex-col gap-2.5">
+        {!dialogOpen && error && <p role="alert" className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>}
+        {notice && <p role="status" className="text-xs" style={{ color: "var(--text-muted)" }}>{notice}</p>}
+        {accessKeys.length === 0 && <p className="text-[11px] px-0.5" style={{ color: "var(--text-subtle)" }}>No access keys yet.</p>}
+        {accessKeys.map((key) => (
+          <div key={key.keyHead} className="row-hover flex flex-col gap-2 py-2.5 px-3 rounded-xl" style={{ border: "1px solid var(--border-subtle)" }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex-1 min-w-0 text-xs font-semibold truncate" style={{ color: "var(--text-main)" }}>{key.name}</span>
+              <code className="text-[10px]" style={{ color: "var(--text-muted)" }}>{key.keyHead}−••••••••</code>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <IconBtn icon={copied === key.keyHead ? "check" : "content_copy"} onClick={() => copy(key)} title={copied === key.keyHead ? "Access key copied" : "Copy access key"} busy={busy} />
+                <IconBtn icon="edit" onClick={(event) => openDialog(key, event)} title="Edit workspace permissions" busy={busy} />
+                <IconBtn icon="delete" onClick={() => revoke(key)} title="Delete access key" danger busy={busy} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {dialogOpen && typeof document !== "undefined" && createPortal(
+        <div className="agent-dashboard fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={closeDialog} />
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="access-key-dialog-title"
+            aria-busy={busy}
+            className="card-elev relative w-full max-w-sm max-h-[85dvh] overflow-y-auto p-5 flex flex-col gap-4"
+            onSubmit={(event) => { event.preventDefault(); if (!busy) { if (editingKey) update(); else create(); } }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeDialog(); }
+              if (event.key !== "Tab") return;
+              const controls = [...event.currentTarget.querySelectorAll("button:not(:disabled), input:not(:disabled)")];
+              const target = event.shiftKey ? controls.at(-1) : controls[0];
+              if (document.activeElement === (event.shiftKey ? controls[0] : controls.at(-1))) { event.preventDefault(); target?.focus(); }
+            }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h3 id="access-key-dialog-title" className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--text-main)" }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }} aria-hidden="true">key</span>
+                {editingKey ? "Edit workspace permissions" : "Create permanent key"}
+              </h3>
+              <button type="button" autoFocus={!!editingKey} aria-label="Close access key dialog" disabled={busy} onClick={closeDialog} className="glass-btn w-7 h-7 rounded-lg flex items-center justify-center" style={{ color: "var(--text-muted)" }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }} aria-hidden="true">close</span>
+              </button>
+            </div>
+            {editingKey ? <p className="text-sm font-medium break-words" style={{ color: "var(--text-main)" }}>{editingKey.name}</p> : <label className="flex flex-col gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+              Key name
+              <input autoFocus maxLength={80} disabled={busy} value={name} onChange={(event) => setName(event.target.value)} placeholder="Shared key" className="w-full min-w-0 px-3 py-2 rounded-lg text-sm" style={{ background: "var(--row-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-main)" }} />
+            </label>}
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium" style={{ color: "var(--text-main)" }}>Workspace permissions</p>
+              {workspacePicker(selected, setSelected, editingKey ? `Workspaces for ${editingKey.name}` : "Workspaces for the new key")}
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Select the workspaces this key can access. An empty selection grants no workspace access.</p>
+            </div>
+            <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Terminal commands still run with the host account’s permissions.</p>
+            {error && <p role="alert" className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={busy} onClick={closeDialog} className="glass-btn px-3 py-2 rounded-lg text-xs" style={{ color: "var(--text-muted)" }}>Cancel</button>
+              <button type="submit" disabled={busy} className="btn-primary px-3 py-2 rounded-lg text-xs font-semibold">{editingKey ? (busy ? "Saving…" : "Save permissions") : (busy ? "Creating…" : "Create key")}</button>
+            </div>
+          </form>
+        </div>, document.body
+      )}
+    </div>
   );
 }
 
@@ -601,6 +764,8 @@ export default function AgentDashboardView() {
   const [deviceToRemove, setDeviceToRemove] = useState(null);
   const [deviceToLabel, setDeviceToLabel] = useState(null);
   const [clientsOpen, setClientsOpen] = useState(true);
+  const [keyList, setKeyList] = useState([]);
+  const [workspaceList, setWorkspaceList] = useState([]);
 
   const versionRef = useRef("");
 
@@ -610,6 +775,14 @@ export default function AgentDashboardView() {
       if (aRes.ok) { const d = await aRes.json(); setApprovedDevices(d.devices || []); }
       if (rRes.ok) { const d = await rRes.json(); setRejectedDevices(d.rejected || []); }
     } catch {}
+  }, []);
+
+  const fetchKeyAccess = useCallback(async () => {
+    const r = await fetch("/api/key/list", { cache: "no-store" }).catch(() => null);
+    if (!r?.ok) return;
+    const d = await r.json().catch(() => null);
+    setKeyList(d?.keys || []);
+    setWorkspaceList(d?.workspaces || []);
   }, []);
 
   const checkVersion = useCallback(() => {
@@ -654,6 +827,7 @@ export default function AgentDashboardView() {
     fetch("/api/connections", { cache: "no-store" }).then((r) => r.json())
       .then((d) => alive && setConnections(d.connections ?? [])).catch(() => {});
     Promise.resolve().then(fetchDevices); // deferred: async like the fetches above
+    Promise.resolve().then(fetchKeyAccess);
 
     fetch("/api/device/auto-approve").then((r) => r.json()).then((d) => alive && setAutoApprove(!!d?.enabled)).catch(() => {});
     fetch("/api/remote/enabled").then((r) => r.json())
@@ -701,7 +875,7 @@ export default function AgentDashboardView() {
     es.onopen = () => { setHostReachable(true); checkVersion(); };
 
     return () => { alive = false; es.close(); };
-  }, [fetchDevices, checkVersion]);
+  }, [fetchDevices, fetchKeyAccess, checkVersion]);
 
   // Auto-mint a one-time key so the QR renders immediately (dashboard parity).
   const autoKeyRef = useRef(false);
@@ -812,6 +986,9 @@ export default function AgentDashboardView() {
                   permanentKey={main.permanentKey}
                   onGenerateOneTimeKey={handleGenerateOneTimeKey}
                   onRegenerateKey={handleRegenerateKey}
+                  accessKeys={keyList}
+                  workspaces={workspaceList}
+                  onRefreshKeys={fetchKeyAccess}
                 />
               </>
             ) : (

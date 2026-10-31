@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { PATHS } from "../../lib/constants.js";
 import { writeJsonAtomic } from "../../lib/atomicFile.js";
+import { headOf } from "./apiKey.js";
 
 const STATE_DIR = PATHS.STATE;
 const STATE_FILE = path.join(PATHS.STATE, "state.json");
@@ -92,10 +93,32 @@ export function loadKey() {
     if (!fs.existsSync(KEYS_FILE)) {
       return { machineId: null, key: null, name: "Default", createdAt: null };
     }
-    return JSON.parse(fs.readFileSync(KEYS_FILE, "utf8"));
+    const data = JSON.parse(fs.readFileSync(KEYS_FILE, "utf8"));
+    // Newer hosts keep the active key plus additional scoped keys in one file.
+    // Keep the old return shape so existing callers continue to work.
+    if (Array.isArray(data.keys)) {
+      return data.keys.find((k) => k.key === data.activeKey) || data.keys[0] || { machineId: null, key: null, name: "Default", createdAt: null };
+    }
+    return data;
   } catch {
     return { machineId: null, key: null, name: "Default", createdAt: null };
   }
+}
+
+/** All permanent keys known to this host, including the legacy active key. */
+export function loadKeys() {
+  try {
+    ensureDir();
+    if (!fs.existsSync(KEYS_FILE)) return [];
+    const data = JSON.parse(fs.readFileSync(KEYS_FILE, "utf8"));
+    if (Array.isArray(data.keys)) return data.keys.filter((k) => k?.key);
+    return data?.key ? [data] : [];
+  } catch { return []; }
+}
+
+export function findKey(keyHead) {
+  if (!keyHead) return null;
+  return loadKeys().find((k) => headOf(k.key) === headOf(keyHead)) || null;
 }
 
 // ==================== IPC CMD ====================
@@ -132,10 +155,43 @@ export function saveKey(machineId, key, name = "Default") {
       name,
       createdAt: new Date().toISOString()
     };
-    writeJsonAtomic(KEYS_FILE, data);
+    const extras = loadKeys().filter((k) => k.key !== loadKey()?.key);
+    writeJsonAtomic(KEYS_FILE, { activeKey: key, keys: [data, ...extras] });
     return data;
   } catch (error) {
     console.error("Error saving key:", error);
     return null;
   }
+}
+
+/** Add a scoped permanent key without replacing the host's active key. */
+export function saveAdditionalKey(machineId, key, name = "Shared key", workspaceIds = []) {
+  try {
+    ensureDir();
+    const existing = loadKeys();
+    const record = { machineId, key, name, workspaceIds: Array.isArray(workspaceIds) ? [...new Set(workspaceIds)] : [], createdAt: new Date().toISOString() };
+    const keys = [...existing.filter((k) => k.key !== key), record];
+    const active = loadKey()?.key || keys[0]?.key || key;
+    writeJsonAtomic(KEYS_FILE, { activeKey: active, keys });
+    return record;
+  } catch { return null; }
+}
+
+export function updateKeyPermissions(keyHead, workspaceIds) {
+  const keys = loadKeys();
+  const target = keys.find((k) => headOf(k.key) === headOf(keyHead));
+  if (!target || target.key === loadKey()?.key) return null;
+  target.workspaceIds = Array.isArray(workspaceIds) ? [...new Set(workspaceIds.filter((x) => typeof x === "string"))] : [];
+  const active = loadKey()?.key || keys[0]?.key;
+  writeJsonAtomic(KEYS_FILE, { activeKey: active, keys });
+  return target;
+}
+
+export function removeAdditionalKey(keyHead) {
+  const keys = loadKeys();
+  const active = loadKey()?.key;
+  const target = keys.find((k) => headOf(k.key) === headOf(keyHead));
+  if (!target || target.key === active) return false;
+  writeJsonAtomic(KEYS_FILE, { activeKey: active, keys: keys.filter((k) => k.key !== target.key) });
+  return true;
 }

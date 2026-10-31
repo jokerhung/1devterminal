@@ -525,8 +525,11 @@ export function setupGitHandlers(socket) {
         }
       }
       if (!fs.existsSync(mainRepo)) mainRepo = repoPath;
+      const access = socket.data?.workspaceAccess;
+      if (access && !access.canPath(mainRepo)) return callback({ success: false, error: "Workspace access denied" });
 
       const busy = terminalsInWorktree(worktreePath, listSessionRoots());
+      if (access && busy.some((session) => !access.canSession(session.id))) return callback({ success: false, error: "Workspace access denied" });
       // Probe answers "what would removal take with it" — nothing is touched.
       if (probe) {
         const branch = typeof deleteBranch === "string" && !deleteBranch.startsWith("-") && !/\s/.test(deleteBranch) ? deleteBranch : null;
