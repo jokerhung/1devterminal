@@ -129,7 +129,7 @@ function resolveSegmentStep(segment, baseEntries) {
 // Desktop folder picker: browse the host filesystem and pick one directory
 // (breadcrumb, dual-mode input, cached listings).
 // Keeps the terminal visible behind it — the mobile flow uses the full-screen WorkspaceList instead.
-export default function FolderPickerModal({ fileBus, initialPath, scope = "", onSelect, onClose }) {
+export default function FolderPickerModal({ fileBus, initialPath, scope = "", submitError = null, onSelect, onClose }) {
   const { t } = useI18n();
   // Frozen at mount: lastBrowsedDir mutates on every navigate, so recomputing this
   // per render would re-fire the boot effects and yank the user back to the start dir.
@@ -686,6 +686,7 @@ export default function FolderPickerModal({ fileBus, initialPath, scope = "", on
         </div>
 
         <div className="px-3 pt-2 pb-3 border-t border-border-subtle flex-shrink-0">
+          {submitError && <p role="alert" className="pb-2 text-xs text-red-500">{submitError}</p>}
           {/* Where a selection would land */}
           <p className="pb-2 text-[10px] text-text-subtle truncate" title={preview ? preview.resolvedPath : dirPath || ""}>
             {preview ? shortHome(preview.resolvedPath, posixHome) : dirPath ? shortHome(dirPath, posixHome) : t("workspaces.drives")}

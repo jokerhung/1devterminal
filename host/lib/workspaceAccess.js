@@ -133,10 +133,15 @@ export function createWorkspaceAccess({ record, localUi = false, workspaces, ses
   }
 
   function output(event, args) {
+    if (event === "serverInfo") return [{
+      ...args[0],
+      canCreateWorkspace,
+      workspaceScoped: !unrestricted,
+      ...(!unrestricted ? { remoteAvailable: false, mobileAvailable: false, canSelfUpdate: false, voiceConfig: null } : {})
+    }, ...args.slice(1)];
     if (unrestricted || event.startsWith("device:")) return args;
     const data = args[0];
     if (event === "statusState" || event === "notificationState") return [filterMap(data), ...args.slice(1)];
-    if (event === "serverInfo") return [{ ...data, remoteAvailable: false, mobileAvailable: false, canSelfUpdate: false, voiceConfig: null, workspaceScoped: true }];
     if (SESSION_OUTPUT.has(event)) return canSession(data) || (event === "sessionClosed" && canWorkspace(knownSessionWorkspaces.get(data))) ? args : null;
     if (data?.sessionId) return canSession(data.sessionId) ? args : null;
     if (event === "dirChanged" || event === "fileChange") return canPath(data?.dirPath || data?.path) ? args : null;
@@ -159,7 +164,9 @@ export function guardWorkspaceHandlers(socket, access) {
       try { allowed = access.allows(event, args[0]); }
       catch { allowed = false; }
       if (!allowed) {
-        ack?.({ ok: false, success: false, error: ACCESS_DENIED });
+        const error = (event === "createWorkspace" || event === "createGroup") && !access.canCreateWorkspace
+          ? "This key cannot create workspaces" : ACCESS_DENIED;
+        ack?.({ ok: false, success: false, error });
         return;
       }
       if (ack) args[ackIndex] = (...reply) => ack(access.filterReply(event, reply[0]), ...reply.slice(1));

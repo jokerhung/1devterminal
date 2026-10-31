@@ -62,7 +62,7 @@ export default function TerminalEmptyState({ onAddWorkspace, onOpenRemote, recen
     <div className="h-full w-full empty-stage empty-stage-h">
       <div className="empty-grid" />
 
-      <button
+      {onAddWorkspace && <button
         onClick={() => { vibrate(); onAddWorkspace?.(); }}
         disabled={!onAddWorkspace}
         className="empty-half text-left transition-all duration-150 enabled:hover:opacity-90 enabled:active:scale-[0.99] disabled:opacity-40 disabled:saturate-50"
@@ -89,10 +89,10 @@ export default function TerminalEmptyState({ onAddWorkspace, onOpenRemote, recen
             ))}
           </span>
         )}
-      </button>
+      </button>}
 
       <>
-        <div className="empty-hairline" aria-hidden />
+        {onAddWorkspace && <div className="empty-hairline" aria-hidden />}
 
         <button
           onClick={() => { vibrate(); setAddHostOpen(true); }}

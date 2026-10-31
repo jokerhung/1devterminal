@@ -51,7 +51,7 @@ const emptyHost = (key) => ({
   sessions: [], workspaces: [], statusMap: {}, tasksBySession: {},
   platform: null, version: null, lastSeenAt: null,
   updateAvailable: null, canSelfUpdate: false, updating: false,
-  approval: null,
+  approval: null, canCreateWorkspace: false,
   remoteAvailable: false, mobileAvailable: false,
   isCodespaces: false, mobileDeviceCount: 0
 });
@@ -89,6 +89,7 @@ const bindBus = (bus, head) => {
     // offering an update (a stale flag on a not-yet-restarted process does).
     updateAvailable: !acted && isNewer(info?.updateAvailable?.version, info?.version) ? info.updateAvailable : null,
     canSelfUpdate: !!info?.canSelfUpdate,
+    canCreateWorkspace: info?.canCreateWorkspace ?? !info?.workspaceScoped,
     remoteAvailable: !!info?.remoteAvailable,
     mobileAvailable: !!info?.mobileAvailable
     });

@@ -344,7 +344,7 @@ function WelcomeCards({ onAddWorkspace, recent, homeDir, connected }) {
     <div className="empty-stage w-full h-full">
       <div className="empty-grid" />
 
-      <button
+      {onAddWorkspace && <button
         onClick={() => { vibrate(); onAddWorkspace?.(); }}
         disabled={!connected}
         className="empty-half text-left active:opacity-80 enabled:active:scale-[0.99] transition-all duration-150 disabled:opacity-40 disabled:saturate-50"
@@ -374,10 +374,10 @@ function WelcomeCards({ onAddWorkspace, recent, homeDir, connected }) {
             ))}
           </span>
         )}
-      </button>
+      </button>}
 
       <>
-        <div className="empty-hairline" aria-hidden />
+        {onAddWorkspace && <div className="empty-hairline" aria-hidden />}
 
         <button
           onClick={() => { vibrate(); setAddHostOpen(true); }}

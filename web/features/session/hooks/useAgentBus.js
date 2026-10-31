@@ -218,6 +218,7 @@ export function useAgentBus() {
         // Honest notice: only ahead-of-running versions count (see fleetStore).
         updateAvailable: !acted && isNewer(info.updateAvailable?.version, info.version) ? info.updateAvailable : null,
         canSelfUpdate: !!info.canSelfUpdate,
+        canCreateWorkspace: info.canCreateWorkspace ?? !info.workspaceScoped,
         remoteAvailable: !!info.remoteAvailable,
         mobileAvailable: !!info.mobileAvailable
       });

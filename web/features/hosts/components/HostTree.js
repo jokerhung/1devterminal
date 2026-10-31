@@ -80,6 +80,7 @@ export default function HostTree({
   const [sessRename, setSessRename] = useState(null);     // {id, value}
   const [sessDelete, setSessDelete] = useState(null);     // {id, name}
   const [wsPicker, setWsPicker] = useState(false);        // fleet add-workspace folder picker
+  const [wsCreateError, setWsCreateError] = useState(null);
   const [shells, setShells] = useState([]);
   const [updateConfirm, setUpdateConfirm] = useState(false);
 
@@ -91,6 +92,8 @@ export default function HostTree({
   // Each host answers for itself: the main host's bus state must never gate a
   // fleet host's actions (and vice versa).
   const actionable = status === "full" ? connected : online;
+  const canCreateWorkspace = host.canCreateWorkspace === true;
+  const openWorkspacePicker = () => { setWsCreateError(null); setWsPicker(true); };
   // Only a host with a live signal expands: a dead host's cached sessions render
   // as if usable while every tap just blinks. "online" from the batched liveness
   // read still opens the bus lazily on expand; a bus that then fails flips the
@@ -181,7 +184,7 @@ export default function HostTree({
         onDisconnect={host.onDisconnect}
         // The add-workspace door only exists on a host that can answer (its picker
         // browses that machine's disks); offline/connecting rows hide it.
-        onAddWorkspace={actionable ? (menuAddWorkspace ?? (status !== "full" ? () => setWsPicker(true) : null)) : null}
+        onAddWorkspace={actionable && canCreateWorkspace ? (menuAddWorkspace ?? (status !== "full" ? openWorkspacePicker : null)) : null}
         onRename={actions.renameHost}
         onDelete={actions.deleteHost}
         showAdd={false}
@@ -233,7 +236,7 @@ export default function HostTree({
                   onToggleCollapse={() => toggleNode(wsKey)}
                   onSelect={actions.selectWorkspace ? () => { vibrate(); actions.selectWorkspace(rawId); } : null}
                   onNewTerminal={actions.createSession ? () => setTermModalWs(wsKey) : null}
-                  onAddWorkspace={menuAddWorkspace}
+                  onAddWorkspace={canCreateWorkspace ? menuAddWorkspace : null}
                   onRename={actions.renameWorkspace && rawId != null ? () => setWsRename({ id: rawId, value: workspace.name }) : null}
                   onDelete={actions.deleteWorkspace && rawId != null ? () => setWsDelete({ id: rawId, name: workspace.name }) : null}
                 />
@@ -400,15 +403,15 @@ export default function HostTree({
             );
           })}
 
-          <button
-            onClick={() => { vibrate(); if (onAddWorkspace) onAddWorkspace(); else setWsPicker(true); }}
+          {canCreateWorkspace && <button
+            onClick={() => { vibrate(); if (onAddWorkspace) onAddWorkspace(); else openWorkspacePicker(); }}
             disabled={!actionable}
             className={`w-full flex items-center gap-1.5 ${mobile ? "text-sm" : "text-[12px] mt-1"} py-1.5 text-left text-text-subtle hover:text-brand-500 transition-colors disabled:opacity-40`}
             title={t("workspaces.newWorkspace")}
           >
             <Plus size={mobile ? 18 : 12} className="flex-shrink-0" />
             <span>{t("workspaces.newWorkspace")}</span>
-          </button>
+          </button>}
         </div>
       )}
 
@@ -430,21 +433,26 @@ export default function HostTree({
         />
       )}
 
-      {wsPicker && fleetConn && (
+      {wsPicker && canCreateWorkspace && fleetConn && (
         <FolderPickerModal
           fileBus={fleetConn.fileBus}
           scope={fleetConn.scope}
+          submitError={wsCreateError}
           onSelect={(folderPath) => {
-            setWsPicker(false);
             if (!folderPath) return;
+            setWsCreateError(null);
             // Main-flow parity (layout.js createWorkspaceAt): name from the folder,
             // recents on this host's scope, then the workspace's first terminal
             // opens — and auto-switches.
             const name = folderPath.split("/").filter(Boolean).pop() || folderPath;
-            addRecentWorkspace(folderPath, fleetConn.scope);
             actions.createWorkspace?.(name, folderPath, (result) => {
               const ws = result?.workspace || result?.group;
-              if (!result?.success || !ws?.id) return;
+              if (!result?.success || !ws?.id) {
+                setWsCreateError(result?.error || t("common.failed"));
+                return;
+              }
+              setWsPicker(false);
+              addRecentWorkspace(folderPath, fleetConn.scope);
               actions.createSession?.(null, ws.id, null, folderPath);
             });
           }}

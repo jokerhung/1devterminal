@@ -269,6 +269,7 @@ export default function WorkspaceLayout({ children }) {
   // Single lane: the main host's lists ride the fleet store entry like every other
   // host. Memoized so the [] fallback keeps one identity across renders.
   const mainHost = fleetHostsMap[currentFleetKey];
+  const canCreateWorkspace = mainHost?.canCreateWorkspace === true;
   const sessions = useMemo(() => mainHost?.sessions || [], [mainHost]);
   const workspaces = useMemo(() => mainHost?.workspaces || [], [mainHost]);
   const scopedLists = useMemo(
@@ -434,17 +435,21 @@ export default function WorkspaceLayout({ children }) {
   );
 
   const createWorkspaceAt = useCallback((folderPath) => {
-    setFolderPicker(null);
     if (!folderPath) return;
+    setFolderPicker({ initialPath: folderPath });
     const name = folderPath.split("/").filter(Boolean).pop() || folderPath;
     createWorkspace(name, folderPath, (result) => {
       const ws = result?.workspace || result?.group;
-      if (!result?.success || !ws?.id) return;
+      if (!result?.success || !ws?.id) {
+        setFolderPicker({ initialPath: folderPath, error: result?.error || t("common.failed") });
+        return;
+      }
+      setFolderPicker(null);
       addRecentWorkspace(folderPath, connScope);
       setActiveWorkspaceId(ws.id);
       nav.handleCreateSession(null, ws.id, null, folderPath);
     });
-  }, [createWorkspace, setActiveWorkspaceId, nav]);
+  }, [createWorkspace, setActiveWorkspaceId, nav, connScope, t]);
 
   // A path means the user picked a recent folder — skip straight to creating it.
   const openFolderPicker = useCallback((initialPath) => {
@@ -983,7 +988,7 @@ export default function WorkspaceLayout({ children }) {
             agentVersion={hostVersion || agentVersion}
             carrier={carrier}
             workspaces={workspaces}
-            onAddWorkspace={openFolderPicker}
+            onAddWorkspace={canCreateWorkspace ? openFolderPicker : null}
             homeDir={systemInfo?.homedir}
             onRenameWorkspace={renameWorkspace}
             onDeleteWorkspace={deleteWorkspace}
@@ -1058,7 +1063,7 @@ export default function WorkspaceLayout({ children }) {
             onLogout={handleLogoutWithConfirm}
             onDeleteWorkspace={deleteWorkspace}
             onReorderSession={reorderSession}
-            onAddWorkspace={openFolderPicker}
+            onAddWorkspace={canCreateWorkspace ? openFolderPicker : null}
             onSetHiddenRepos={setWorkspaceHiddenRepos}
             onOpenSettings={openSlideMenu}
             onRenameHost={handleRenameHost}
@@ -1086,6 +1091,7 @@ export default function WorkspaceLayout({ children }) {
             fileBus={fileBus}
             scope={connScope}
             initialPath={folderPicker.initialPath}
+            submitError={folderPicker.error}
             onSelect={createWorkspaceAt}
             onClose={() => setFolderPicker(null)}
           />
