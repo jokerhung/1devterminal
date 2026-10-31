@@ -1,6 +1,10 @@
 // Normalize OS-native separators to POSIX.
 export const toPosixPath = (p) => (typeof p === "string" ? p.replace(/\\/g, "/") : p);
 
+// Directory and worktree reads must never leave a panel in a permanent spinner
+// when a carrier disappears between sending a request and receiving its ACK.
+export const FILE_REQUEST_TIMEOUT_MS = 12000;
+
 // Path fields in bus responses to normalize.
 const PATH_FIELDS = new Set([
   "path", "currentPath", "parentPath", "dirPath", "filePath",

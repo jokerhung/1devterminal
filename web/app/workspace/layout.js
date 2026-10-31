@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
-import { useRouter } from "next/navigation";
 import { useAgentBus } from "@/features/session/hooks/useAgentBus";
 import { useSessionStorage } from "@/shared/hooks/useSessionStorage";
 import { useTerminalStore } from "@/shared/stores/terminalStore";
@@ -68,7 +67,6 @@ import PendingDeviceApprovalModal from "@/features/session/components/PendingDev
 import { useI18n } from "@/shared/i18n";
 import { useRouteSync } from "@/shared/hooks/useRouteSync";
 import { useLastRoute } from "@/shared/hooks/useLastRoute";
-import { viewToPath } from "@/features/terminal/constants/routeConfig";
 
 function RouteSyncTracker({ hydrated, apiKey }) {
   useRouteSync(hydrated);
@@ -177,7 +175,6 @@ export default function WorkspaceLayout({ children }) {
     removeArtifact: s.removeArtifact,
   })));
 
-  const router = useRouter();
   const { getAuth, setAuth, clearAuth } = useSessionStorage();
   const [auth, setAuthState] = useState(() => getAuth());
   // Host switching re-keys in place: authKey is the reactive mirror of
@@ -750,8 +747,7 @@ export default function WorkspaceLayout({ children }) {
     setSlideClass(ids.indexOf(active) > ids.indexOf(prev) ? "term-slide-right" : "term-slide-left");
   }, [currentView, swipeAnimEnabled, openedSessions]);
 
-  // Pop view by updating viewStack and replacing route URL to match target view.
-  // Avoids router.back() to prevent WKWebView blank-screen rendering glitch and history races.
+  // RouteSyncTracker mirrors the popped view without remounting the workspace shell.
   const popView = useCallback(() => {
     // Mobile: close the editor overlay first (it's not in the viewStack) before navigating back
     if (!isDesktop && mobileEditor) {
@@ -759,11 +755,8 @@ export default function WorkspaceLayout({ children }) {
       setMobileEditor(null);
       return;
     }
-    const stack = Array.isArray(viewStack) ? viewStack : [];
-    const targetView = stack.length > 1 ? stack[stack.length - 2] : { type: "list" };
     storePopView();
-    router.replace(viewToPath(targetView));
-  }, [router, storePopView, isDesktop, mobileEditor, setMobileEditor, removeArtifact, viewStack]);
+  }, [storePopView, isDesktop, mobileEditor, setMobileEditor, removeArtifact]);
 
   // The terminal header's back means "leave the terminal, go to the session list" — not
   // "undo one step". Stepping one history entry at a time landed on the previous terminal

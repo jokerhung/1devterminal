@@ -1,32 +1,22 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname, useSearchParams, useRouter } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTerminalStore } from "@/shared/stores/terminalStore";
-import { useShallow } from "zustand/react/shallow";
 import { pathToView, viewToPath, stackForUrl, OVERLAY_VIEWS } from "@/features/terminal/constants/routeConfig";
 
 // URL is the single source of truth for navigation. Browser history drives the
 // viewStack (URL -> store). Store changes from in-app forward actions (open
 // terminal/remote/files) push a matching URL so links stay shareable.
-// navSourceRef breaks the feedback loop: when URL drives store (browser Back),
-// the store change must not push a new URL entry on top.
+// History updates preserve the workspace shell and its live connection without fetching route markers.
 export function useRouteSync(hydrated) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const { viewStack, pushView, setViewStack } = useTerminalStore(
-    useShallow((s) => ({ viewStack: s.viewStack, pushView: s.pushView, setViewStack: s.setViewStack }))
-  );
+  const viewStack = useTerminalStore((s) => s.viewStack);
   const currentView = viewStack[viewStack.length - 1];
-  // Overlay views have no URL of their own — compare against the view below them
-  const routedView = OVERLAY_VIEWS.includes(currentView?.type)
-    ? viewStack[viewStack.length - 2]
-    : currentView;
   const lastSyncedPath = useRef(null);
   const prevViewRef = useRef(null);
   const prevStackLenRef = useRef(null);
-  const navSourceRef = useRef(null); // "url" | "store"
 
   // URL -> store: apply view parsed from URL when it differs from current
   useEffect(() => {
@@ -36,8 +26,10 @@ export function useRouteSync(hydrated) {
     const target = viewToPath(view);
     if (target === lastSyncedPath.current) return; // already in sync
     lastSyncedPath.current = target;
+    const { viewStack, pushView, setViewStack } = useTerminalStore.getState();
+    const currentView = viewStack[viewStack.length - 1];
+    const routedView = OVERLAY_VIEWS.includes(currentView?.type) ? viewStack[viewStack.length - 2] : currentView;
     if (routedView && viewToPath(routedView) === target) return; // store already matches
-    navSourceRef.current = "url";
     const nextStack = stackForUrl(viewStack, view);
     if (nextStack) setViewStack(nextStack);
     else pushView(view);
@@ -62,10 +54,6 @@ export function useRouteSync(hydrated) {
     // Overlay views (site browser) live outside the URL — nothing to mirror
     if (OVERLAY_VIEWS.includes(liveView?.type)) return;
     const target = viewToPath(liveView);
-    if (target === lastSyncedPath.current) return;
-    const currentUrlPath = viewToPath(pathToView(pathname, searchParams));
-    const fromUrl = navSourceRef.current === "url";
-    if (fromUrl) navSourceRef.current = null;
     // Tab switch within terminal view is same-level: replace (not push) so browser Back
     // returns to session list instead of the previous tab.
     const sameLevelTerminal = prevViewRef.current?.type === "terminal" && liveView?.type === "terminal";
@@ -75,12 +63,13 @@ export function useRouteSync(hydrated) {
     // A stack that shrank is a pop — pushing here would strand a duplicate entry behind
     // the OS back gesture (it slides a screen onto itself and looks stuck mid-way).
     const isPop = live.length < prevStackLenRef.current;
-    navSourceRef.current = "store";
-    lastSyncedPath.current = target;
     prevViewRef.current = liveView;
     prevStackLenRef.current = live.length;
-    if (fromUrl || target === currentUrlPath) return;
-    if (sameLevelTerminal || toRoot || isPop) router.replace(target);
-    else router.push(target);
+    if (target === lastSyncedPath.current) return;
+    lastSyncedPath.current = target;
+    const currentUrlPath = viewToPath(pathToView(pathname, searchParams));
+    if (target === currentUrlPath) return;
+    if (sameLevelTerminal || toRoot || isPop) window.history.replaceState(null, "", target);
+    else window.history.pushState(null, "", target);
   }, [hydrated, currentView, pathname, searchParams]);
 }

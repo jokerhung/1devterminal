@@ -65,6 +65,22 @@ export function useSessionNavigation({
     currentView, pushView, replaceTopWithSession, requestFocus
   ]);
 
+  // URL and browser-history navigation must restore the selected workspace's panes after lists arrive.
+  useEffect(() => {
+    const state = useTerminalStore.getState();
+    const view = state.getCurrentView();
+    if (view?.type !== "terminal") return;
+    const selected = sessions.find((session) => session.id === view.sessionId);
+    if (!selected) return;
+    const workspaceId = sessionWorkspaceId(selected);
+    const ids = sessions.filter((session) => sessionWorkspaceId(session) === workspaceId).map((session) => session.id);
+    const missing = ids.filter((id) => !state.openedSessions.includes(id));
+    if (state.activeWorkspaceId !== workspaceId) state.setActiveWorkspaceId(workspaceId);
+    missing.forEach((id) => state.addOpenedSession(id));
+    if (missing.length || !state.livePanes.includes(selected.id)) state.touchLivePane(ids);
+    if (state.hiddenPaneSessionIds.includes(selected.id)) state.unhidePane(selected.id);
+  }, [currentView, sessions]);
+
   // Deep-link from a push notification tap (SW postMessage) or OS Dock icon click
   useEffect(() => {
     const onMessage = (e) => {

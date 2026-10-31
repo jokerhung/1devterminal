@@ -129,7 +129,15 @@ export function onBinary(pm, msg) {
 }
 
 // Idempotent read/create requests safe to retry over WS upon RTC ack timeout.
-const ACK_RETRY_SAFE = new Set(["getSessions", "getWorkspaces", "bg:get", "bg:list", "ai:create", "ai:peekSeq", "aiSince"]);
+// Read-only requests can be replayed on the warm WS carrier when an RTC ACK is
+// lost. Keeping these here avoids a file tree (or git panel) waiting forever on
+// a half-open data channel; none of these events mutate host state.
+const ACK_RETRY_SAFE = new Set([
+  "getSessions", "getWorkspaces", "bg:get", "bg:list", "ai:create", "ai:peekSeq", "aiSince",
+  "getSystemInfo", "getFiles", "getFileTree", "searchFiles", "searchInFiles",
+  "gitStatus", "gitChangedCount", "gitFileStatus", "gitDiff", "gitShowMedia",
+  "gitScanRepos", "gitWorkspaceChangedCount", "gitWorktreeList", "gitBranchList", "gitLog"
+]);
 
 export function scheduleAckTimeout(pm, ackId, ctx) {
   const timer = setTimeout(() => {

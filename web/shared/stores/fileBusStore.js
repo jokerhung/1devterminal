@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { useConnectionStore } from "@/shared/stores/connectionStore";
-import { normalizePathsResponse } from "@/features/fileExplorer/constants/fileExplorer.js";
+import { FILE_REQUEST_TIMEOUT_MS, normalizePathsResponse } from "@/features/fileExplorer/constants/fileExplorer.js";
 import { uploadFiles as transferUpload, downloadFile as transferDownload, streamMedia as transferStream } from "@/features/fileExplorer/lib/fileTransfer.js";
 
 const normResolve = (resolve) => (res) => {
@@ -25,7 +25,13 @@ export function makeFileBus(getBus, getProtocol = () => null, getLiveBus = getBu
   getFiles: (dirPath, showHidden = false) => new Promise((resolve) => {
     const bus = getBus();
     if (!bus) return resolve({ success: false, error: "Not connected" });
-    bus.emit("getFiles", { dirPath, showHidden }, normResolve(resolve));
+    let timer;
+    const done = (res) => {
+      clearTimeout(timer);
+      resolve(normalizePathsResponse(res));
+    };
+    timer = setTimeout(() => resolve({ success: false, error: "File list request timed out" }), FILE_REQUEST_TIMEOUT_MS);
+    bus.emit("getFiles", { dirPath, showHidden }, done);
   }),
 
   readFile: (filePath) => new Promise((resolve) => {
@@ -196,7 +202,10 @@ export function makeFileBus(getBus, getProtocol = () => null, getLiveBus = getBu
   gitWorktreeList: (repoPath) => new Promise((resolve) => {
     const bus = getBus();
     if (!bus) return resolve({ success: false, error: "Not connected" });
-    bus.emit("gitWorktreeList", { repoPath }, resolve);
+    let timer;
+    const done = (res) => { clearTimeout(timer); resolve(normalizePathsResponse(res)); };
+    timer = setTimeout(() => resolve({ success: false, error: "Worktree list request timed out" }), FILE_REQUEST_TIMEOUT_MS);
+    bus.emit("gitWorktreeList", { repoPath }, done);
   }),
 
   gitWorktreeAdd: (repoPath, worktreePath, branch, newBranch) => new Promise((resolve) => {
