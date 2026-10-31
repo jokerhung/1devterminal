@@ -452,7 +452,7 @@ export async function startServer() {
     publicPaths: [
       "/", "/ui", "/workspace", "/_next", "/login", "/socket.io",
       "/manifest.json", "/sw.js", "/favicon.ico", "/icon-192.png", "/icon-512.png",
-      "/screenshots"
+      "/icons", "/screenshots"
     ]
   });
 
