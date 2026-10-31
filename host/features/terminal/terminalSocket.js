@@ -117,9 +117,9 @@ async function _syncDaemonSessions() {
   const liveById = new Map(daemonSessions.map((s) => [s.id, s]));
   const metadata = loadSessionMetadata();
 
-  // Kill daemon orphans (live but absent from agent metadata) — leftovers from an older daemon
+  // A live PTY can outlast its metadata write during an interrupted host update.
   for (const s of daemonSessions) {
-    if (!metadata[s.id]) { try { await daemonClient.deleteSession(s.id); } catch {} }
+    if (!metadata[s.id]) metadata[s.id] = { ...s, autoNamed: true };
   }
 
   // Agent metadata is the source of truth; daemon only reports which are live + live cwd
@@ -359,8 +359,8 @@ export async function initializeTerminal() {
 
   // Buffer mode (fallback)
   console.log("📦 Buffer persistence mode - scrollback enabled");
-  const savedSessions = listSavedBufferSessions();
   const metadata = loadSessionMetadata();
+  const savedSessions = [...new Set([...Object.keys(metadata), ...listSavedBufferSessions()])];
   for (const sessionId of savedSessions) {
     const meta = metadata[sessionId] || {};
     sessions.set(sessionId, {
@@ -371,6 +371,9 @@ export async function initializeTerminal() {
       cwd: meta.cwd,
       workspacePath: meta.workspacePath ?? migratedSessionPaths[sessionId] ?? null,
       shellId: meta.shellId,
+      agent: meta.agent || null,
+      lastCols: meta.cols ?? null,
+      lastRows: meta.rows ?? null,
       buffer: [],
       needsRestore: true
     });

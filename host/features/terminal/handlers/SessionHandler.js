@@ -1,6 +1,6 @@
 import pty from "node-pty";
 import * as daemonClient from "../ptyDaemonClient.js";
-import { getDefaultShell, getDefaultCwd, buildShellEnv, saveSessionBuffer, loadSessionBuffer, deleteSessionBuffer, saveSessionMetadata, saveWorkspaces, loadSessionNote, saveSessionNote, deleteSessionNote, UPLOAD_DIR } from "../ptyHelper.js";
+import { getDefaultCwd, buildShellEnv, saveSessionBuffer, loadSessionBuffer, deleteSessionBuffer, saveSessionMetadata, saveWorkspaces, loadSessionNote, saveSessionNote, deleteSessionNote, UPLOAD_DIR } from "../ptyHelper.js";
 import { resolveShell, getShellList, SESSION_NAME_MAX, AUTO_NAME_RE, OUTPUT_SLICE_BYTES } from "../constants.js";
 import { createLogger } from "../../../lib/logger.js";
 
@@ -186,16 +186,15 @@ function attachPtyListeners(ptyProcess, sessionId, sessionData, io, sessions) {
     const size = sessionData.buffer.reduce((s, c) => s + c.length, 0);
     if (size > MAX_BUFFER) sessionData.buffer = [takeBufferTail(sessionData.buffer, MAX_BUFFER)];
     broadcast(io, "output", { sessionId, data: Buffer.from(data, "utf-8") });
-    if (PERSISTENCE_MODE === "buffer") {
-      if (saveTimeout) clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => saveSessionBuffer(sessionId, sessionData.buffer, PERSISTENCE_MODE), 2000);
-    }
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => saveSessionBuffer(sessionId, sessionData.buffer, "buffer"), 2000);
   });
 
   ptyProcess.onExit(({ exitCode }) => {
+    if (saveTimeout) clearTimeout(saveTimeout);
     console.log(`PTY exited: sessionId=${sessionId}, code=${exitCode}`);
-    if (PERSISTENCE_MODE === "buffer" && sessionData.buffer.length > 0) {
-      saveSessionBuffer(sessionId, sessionData.buffer, PERSISTENCE_MODE);
+    if (sessionData.buffer.length > 0) {
+      saveSessionBuffer(sessionId, sessionData.buffer, "buffer");
     }
     sessions.delete(sessionId);
     deleteSessionBuffer(sessionId);
@@ -286,7 +285,8 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
   };
 
   const createWorkspace = ({ name, path: wsPath }, callback) => {
-    if (!unrestricted) return callback({ success: false, error: "This key cannot create workspaces" });
+    if (!unrestricted && access.canCreateWorkspace !== true) return callback({ success: false, error: "This key cannot create workspaces" });
+    if (!unrestricted && wsPath && !access.canPath(wsPath)) return callback({ success: false, error: "Workspace access denied" });
     // Validate path points to a real directory if supplied.
     let resolvedPath = null;
     if (wsPath) {
@@ -301,7 +301,10 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
       }
     }
     const existing = resolvedPath && [...workspaces.values()].find((w) => w.path === resolvedPath);
-    if (existing) return callback({ success: true, workspace: existing, group: existing });
+    if (existing) {
+      if (!allowed(existing.id)) return callback({ success: false, error: "Workspace access denied" });
+      return callback({ success: true, workspace: existing, group: existing });
+    }
 
     const id = `ws-${Date.now()}`;
     const workspace = {
@@ -310,6 +313,13 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
       path: resolvedPath,
       createdAt: Date.now()
     };
+    if (!unrestricted) {
+      try {
+        if (!access.grantWorkspace(id)) return callback({ success: false, error: "Could not grant workspace access" });
+      } catch (error) {
+        return callback({ success: false, error: error.message });
+      }
+    }
     workspaces.set(id, workspace);
     persist();
     broadcastChanged();
@@ -533,6 +543,7 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
       attachPtyListeners(ptyProcess, sessionId, sessionData, io, sessions);
       sessions.set(sessionId, sessionData);
       if (workspace) { sessionWorkspaces[sessionId] = workspace.id; persist(); }
+      saveSessionMetadata(sessions);
       await retire({ success: true, sessionId, shellLabel: shellConfig.label });
     } catch (error) {
       console.error("Failed to create session:", error);
@@ -593,21 +604,27 @@ export function setupSessionHandlers(socket, io, sessions, workspaces, sessionWo
       return;
     }
 
-    if (session.needsRestore && PERSISTENCE_MODE === "buffer") {
+    if (session.needsRestore && !session.daemon) {
       try {
-        const shell = getDefaultShell();
-        const shellArgs = process.platform === "win32" ? [] : ["-l"];
-        const cwd = getDefaultCwd(isCodespaces());
-        const ptyProcess = pty.spawn(shell, shellArgs, { name: "xterm-256color", cols: 80, rows: 24, cwd, env: buildShellEnv(), useConpty: false });
+        const shell = resolveShell(session.shellId);
+        const cwd = session.cwd && fs.existsSync(session.cwd) ? session.cwd : getDefaultCwd(isCodespaces());
+        const { cols, rows } = pickRespawnSize({ lastCols: joinCols ?? session.lastCols, lastRows: joinRows ?? session.lastRows });
+        const env = { ...buildShellEnv(), NINE_REMOTE_SESSION_ID: sessionId };
+        const ptyProcess = pty.spawn(shell.path, shell.args, { name: "xterm-256color", cols, rows, cwd, env, useConpty: false });
 
         session.pty = ptyProcess;
         session.needsRestore = false;
         session.cwd = cwd;
+        session.shellId = shell.id;
+        session.shellLabel = shell.label;
+        session.lastCols = cols;
+        session.lastRows = rows;
 
-        const saved = loadSessionBuffer(sessionId, PERSISTENCE_MODE);
+        const saved = loadSessionBuffer(sessionId, "buffer");
         if (saved) session.buffer = [saved];
 
         attachPtyListeners(ptyProcess, sessionId, session, io, sessions);
+        saveSessionMetadata(sessions);
         console.log(`✅ Restored PTY session: ${sessionId}`);
       } catch (error) {
         console.error("Failed to restore session:", error);

@@ -165,11 +165,11 @@ export function saveKey(machineId, key, name = "Default") {
 }
 
 /** Add a scoped permanent key without replacing the host's active key. */
-export function saveAdditionalKey(machineId, key, name = "Shared key", workspaceIds = []) {
+export function saveAdditionalKey(machineId, key, name = "Shared key", workspaceIds = [], canCreateWorkspace = false) {
   try {
     ensureDir();
     const existing = loadKeys();
-    const record = { machineId, key, name, workspaceIds: Array.isArray(workspaceIds) ? [...new Set(workspaceIds)] : [], createdAt: new Date().toISOString() };
+    const record = { machineId, key, name, workspaceIds: Array.isArray(workspaceIds) ? [...new Set(workspaceIds)] : [], canCreateWorkspace: canCreateWorkspace === true, createdAt: new Date().toISOString() };
     const keys = [...existing.filter((k) => k.key !== key), record];
     const active = loadKey()?.key || keys[0]?.key || key;
     writeJsonAtomic(KEYS_FILE, { activeKey: active, keys });
@@ -177,11 +177,12 @@ export function saveAdditionalKey(machineId, key, name = "Shared key", workspace
   } catch { return null; }
 }
 
-export function updateKeyPermissions(keyHead, workspaceIds) {
+export function updateKeyPermissions(keyHead, workspaceIds, canCreateWorkspace = false) {
   const keys = loadKeys();
   const target = keys.find((k) => headOf(k.key) === headOf(keyHead));
   if (!target || target.key === loadKey()?.key) return null;
   target.workspaceIds = Array.isArray(workspaceIds) ? [...new Set(workspaceIds.filter((x) => typeof x === "string"))] : [];
+  target.canCreateWorkspace = canCreateWorkspace === true;
   const active = loadKey()?.key || keys[0]?.key;
   writeJsonAtomic(KEYS_FILE, { activeKey: active, keys });
   return target;

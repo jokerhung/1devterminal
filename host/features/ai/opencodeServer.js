@@ -2,24 +2,34 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import spawn from "cross-spawn"; // Windows: npm-installed opencode is a .cmd shim a bare spawn cannot exec
 import { createLogger } from "../../lib/logger.js";
 import { PATHS } from "../../lib/constants.js";
 import { OPENCODE_SERVER_PORT, OPENCODE_PROMPT_TIMEOUT_MS } from "./constants.js";
 import { getExtendedEnv } from "./adapters/env.js";
+import { promptInput, messageRecord, questionRecord, formAnswer } from "./opencodeV2.js";
 
 const logger = createLogger("ai");
 const BOOT_TIMEOUT_MS = 15000;
 const PORT_POLL_MS = 250;
+const execFileAsync = promisify(execFile);
+const PROCESS_QUERY_TIMEOUT_MS = 5000;
 // The command route blocks until the whole agent loop ends — the generic 30s
 // api timeout would abort live command turns mid-stream.
 const COMMAND_TIMEOUT_MS = 600000;
+const MESSAGE_PAGE_SIZE = 100;
 
 const v2Sessions = new Set();
+const pendingForms = new Map();
 
 let proc = null;
 let base = null;
 let booting = null;
+let password = null;
+let modernApi = false;
 // PID of an adopted server a previous 9remote agent spawned (marker file match):
 // retirable when idle, unlike one the user started by hand.
 let adoptedOurs = null;
@@ -28,6 +38,30 @@ let adoptedOurs = null;
 // and a marker that vanished while its server lived on turned it into an orphan
 // nobody could adopt — 400MB held forever.
 const markerFile = () => path.join(PATHS.STATE, `opencode-serve-${OPENCODE_SERVER_PORT}.pid`);
+const passwordFile = () => path.join(PATHS.STATE, `opencode-serve-${OPENCODE_SERVER_PORT}.password`);
+function serverPassword() {
+  if (password) return password;
+  password = process.env.OPENCODE_PASSWORD || process.env.OPENCODE_SERVER_PASSWORD || null;
+  if (password) return password;
+  fs.mkdirSync(PATHS.STATE, { recursive: true });
+  try { password = fs.readFileSync(passwordFile(), "utf8").trim(); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  if (password) return password;
+  const generated = randomBytes(32).toString("base64url");
+  try { fs.writeFileSync(passwordFile(), generated, { mode: 0o600, flag: "wx" }); }
+  catch (error) { if (error.code !== "EEXIST") throw error; }
+  password = fs.readFileSync(passwordFile(), "utf8").trim();
+  return password;
+}
+
+function authHeaders(headers = {}) {
+  return password ? { ...headers, Authorization: `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}` } : headers;
+}
+
+export async function fetchServer(route, options = {}) {
+  const url = await ensureServer();
+  return fetch(`${url}${route}`, { ...options, headers: authHeaders(options.headers) });
+}
 const clearMarker = () => { try { fs.unlinkSync(markerFile()); } catch {} };
 const markerMatches = async (pid) => {
   if (!pid) return false;
@@ -71,7 +105,7 @@ async function syncCredentials(url) {
       try {
         await fetch(`${url}/api/integration/${id}/connect/key`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: authHeaders({ "content-type": "application/json" }),
           body: JSON.stringify({ key: entry.key }),
           signal: AbortSignal.timeout(3000)
         });
@@ -85,19 +119,30 @@ async function syncCredentials(url) {
 async function waitForPort(url, deadline) {
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${url}/api/session`, { signal: AbortSignal.timeout(2000) });
+      const res = await fetch(`${url}/api/session`, { headers: authHeaders(), signal: AbortSignal.timeout(2000) });
       // Another HTTP process on the port answers HTML — not our server.
-      if (res.ok && (res.headers.get("content-type") || "").includes("application/json")) return true;
+      if (res.ok && (res.headers.get("content-type") || "").includes("application/json")) {
+        const info = await fetch(`${url}/api/info`, { headers: authHeaders(), signal: AbortSignal.timeout(2000) });
+        modernApi = false;
+        if (info.ok && (info.headers.get("content-type") || "").includes("application/json")) {
+          const identity = await info.json();
+          modernApi = Number(String(identity.version || "").split(".")[0]) >= 2;
+        }
+        return true;
+      }
     } catch {}
     await new Promise((r) => setTimeout(r, PORT_POLL_MS));
   }
   return false;
 }
 
-// Find PID listening on port via lsof (macOS/Linux).
+// Query the listener PID using the platform's process tools.
 async function portHolder(port) {
   try {
-    const { execFile } = await import("node:child_process");
+    if (process.platform === "win32") {
+      const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess`], { timeout: PROCESS_QUERY_TIMEOUT_MS, windowsHide: true });
+      return /^\d+$/.test(stdout.trim()) ? stdout.trim() : null;
+    }
     const out = await new Promise((resolve) =>
       execFile("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { timeout: 3000 }, (e, stdout) => resolve(e ? "" : stdout)));
     return out.split("\n").map((s) => s.trim()).filter(Boolean)[0] || null;
@@ -109,24 +154,44 @@ async function portHolder(port) {
 // Verify PID is OUR opencode serve — this guards a kill, so the port must match too:
 // a `serve` on another port is the user's own, and it only shares the binary name.
 async function isOurServer(pid) {
+  if (!/^\d+$/.test(String(pid))) return false;
   try {
-    const { execFile } = await import("node:child_process");
-    const cmd = await new Promise((resolve) =>
-      execFile("ps", ["-o", "command=", "-p", String(pid)], { timeout: 3000 }, (e, stdout) => resolve(e ? "" : stdout)));
-    return new RegExp(`opencode\\s+serve\\b.*--port\\s+${OPENCODE_SERVER_PORT}\\b`).test(cmd);
+    const { stdout } = process.platform === "win32"
+      ? await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}').CommandLine`], { timeout: PROCESS_QUERY_TIMEOUT_MS, windowsHide: true })
+      : await execFileAsync("ps", ["-o", "command=", "-p", String(pid)], { timeout: PROCESS_QUERY_TIMEOUT_MS });
+    const args = (stdout.match(/"[^"]*"|'[^']*'|\S+/g) || []).map((arg) => arg.replace(/^["']|["']$/g, ""));
+    const serve = args.indexOf("serve");
+    return serve > 0 && /^opencode(?:\.exe|\.cmd|\.js)?$/i.test(path.basename(args[serve - 1]))
+      && args[args.indexOf("--port") + 1] === String(OPENCODE_SERVER_PORT)
+      && args[args.indexOf("--hostname") + 1] === "127.0.0.1";
   } catch {
     return false;
   }
 }
 
+async function terminateServer(target) {
+  if (!target) return;
+  if (process.platform === "win32" && target.pid && target.kill) {
+    await execFileAsync("taskkill.exe", ["/PID", String(target.pid), "/T", "/F"], { timeout: PROCESS_QUERY_TIMEOUT_MS, windowsHide: true });
+    return;
+  }
+  if (target.kill) target.kill("SIGTERM");
+  else process.kill(Number(target.pid), "SIGTERM");
+}
+
 // Ensure OpenCode server is running and return its base URL.
 export async function ensureServer() {
   if (base && proc && proc.exitCode === null) return base;
+  if (base && adoptedOurs) {
+    try { process.kill(adoptedOurs, 0); return base; }
+    catch { base = null; adoptedOurs = null; }
+  }
   if (booting) return booting;
 
   booting = (async () => {
     const port = serverPort();
     const url = `http://127.0.0.1:${port}`;
+    serverPassword();
 
     // Adopt running server if already answering on port.
     if (await waitForPort(url, Date.now() + 1000)) {
@@ -147,6 +212,14 @@ export async function ensureServer() {
       return url;
     }
 
+    const incumbent = await portHolder(port);
+    if (incumbent) {
+      if (!(await isOurServer(incumbent))) throw new Error(`OpenCode port ${port} is occupied by another process`);
+      logger.warn(`[opencode] replacing inaccessible managed server pid ${incumbent} on port ${port}`);
+      await terminateServer({ pid: Number(incumbent) });
+      await new Promise((resolve) => setTimeout(resolve, PORT_POLL_MS));
+    }
+
     // Terminate unresponsive OpenCode server holding the port.
     let lastFail = "";
     let stderrTail = "";
@@ -154,10 +227,11 @@ export async function ensureServer() {
       lastFail = "";
       stderrTail = "";
       proc = spawn("opencode", ["serve", "--port", String(port), "--hostname", "127.0.0.1"], {
-        env: buildOpencodeEnv(),
+        env: { ...buildOpencodeEnv(), OPENCODE_PASSWORD: password, OPENCODE_SERVER_PASSWORD: password },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true
       });
+      const child = proc;
       proc.stdout.on("data", () => {});
       // Drain stderr to prevent pipe buffer from filling — but keep a tail, because
       // "did not start" alone never says why (bad flag, old version, auth error).
@@ -165,34 +239,32 @@ export async function ensureServer() {
       proc.on("error", (e) => {
         lastFail = e.message;
         logger.warn(`[opencode] server failed to start: ${e.message}`);
-        proc = null;
-        base = null;
+        if (proc === child) { proc = null; base = null; }
       });
       proc.on("exit", (code) => {
         // A real exit during boot is a failure we can name; our own kill (signal, no code) is not.
         if (code != null) lastFail = `exited with code ${code}${stderrTail ? `: ${stderrTail.replace(/\s+/g, " ").trim().slice(0, 300)}` : ""}`;
-        proc = null;
-        base = null;
-        clearMarker();
+        if (proc === child) { proc = null; base = null; clearMarker(); }
       });
 
       if (await waitForPort(url, Date.now() + BOOT_TIMEOUT_MS)) {
         base = url;
         // Ownership marker: a later agent adopts this server knowing it is ours.
-        try { fs.writeFileSync(markerFile(), String(proc.pid)); } catch {}
+        const holder = await portHolder(port);
+        try { fs.writeFileSync(markerFile(), String(holder || child.pid)); } catch {}
         // A caller with no chat session (e.g. the model catalog) must not leave
         // the spawn alive forever; armIdleStop no-ops when a session retained it.
         armIdleStop();
         syncCredentials(url).catch(() => {});
         return url;
       }
-      try { proc?.kill(); } catch {}
+      try { await terminateServer(child); } catch (error) { logger.debug(`[opencode] stop after failed boot: ${error.message}`); }
       proc = null;
 
       const holder = await portHolder(port);
       if (!holder || !(await isOurServer(holder))) break;
       logger.warn(`[opencode] unresponsive server pid ${holder} holds port ${port} — replacing it`);
-      try { process.kill(Number(holder), "SIGTERM"); } catch {}
+      try { await terminateServer({ pid: Number(holder) }); } catch (error) { logger.debug(`[opencode] replacement stop: ${error.message}`); }
       await new Promise((r) => setTimeout(r, 500));
     }
     booting = null;
@@ -230,9 +302,12 @@ function armIdleStop() {
     // started by hand carries no marker and is not ours to stop.
     // The ids belong to the retiring server; a fresh one repopulates on create.
     v2Sessions.clear();
-    if (proc) { try { proc.kill("SIGTERM"); } catch {} return; }
+    if (proc) { terminateServer(proc).catch((error) => logger.warn(`[opencode] idle stop failed: ${error.message}`)); return; }
     if (adoptedOurs) {
-      try { process.kill(adoptedOurs, "SIGTERM"); } catch {}
+      const target = adoptedOurs;
+      adoptedOurs = null;
+      base = null;
+      terminateServer({ pid: target }).catch((error) => logger.warn(`[opencode] idle stop failed: ${error.message}`));
       clearMarker();
     }
   }, testIdleMs ?? SERVER_IDLE_STOP_MS);
@@ -255,7 +330,7 @@ async function api(method, path, body, { timeoutMs = 30000 } = {}) {
   const url = await ensureServer();
   const res = await fetch(`${url}${path}`, {
     method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers: authHeaders(body === undefined ? {} : { "Content-Type": "application/json" }),
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs)
   });
@@ -281,8 +356,12 @@ export async function createSession(cwd, extras = {}) {
 
 export const isV2Session = (id) => v2Sessions.has(id);
 
-// v1 route: the v2 mirror answers an empty list even for sessions it holds.
-export const listMessages = (sessionId) => api("GET", `/session/${sessionId}/message`);
+export async function listMessages(sessionId) {
+  await ensureServer();
+  if (!modernApi) return api("GET", `/session/${sessionId}/message`);
+  const messages = await api("GET", `/api/session/${sessionId}/message?order=desc&limit=${MESSAGE_PAGE_SIZE}`);
+  return messages.reverse().map(messageRecord);
+}
 
 // Session info including the agent it currently runs (read before a mode PATCH).
 export const getSession = (sessionId) => api("GET", `/api/session/${sessionId}`);
@@ -292,14 +371,13 @@ export const renameSession = (sessionId, title) => api("PATCH", `/api/session/${
 
 export const activeSessions = () => api("GET", "/api/session/active");
 
-// v1 message route, NOT /api/.../prompt: on 1.18.x the v2 endpoint only steers a
-// running turn — an idle session admits the prompt (200 OK) but never runs it,
-// and even a resumed turn persists nothing to the store. ponytail: if v1 goes
-// away, its replacement must both start the turn and persist messages.
-// The call resolves when the whole agent loop ends, so it needs the long
-// command timeout, not the generic 30s api one.
-export const prompt = (sessionId, body) =>
-  api("POST", `/session/${sessionId}/message`, typeof body === "string" ? { parts: [{ type: "text", text: body }] } : body, { timeoutMs: OPENCODE_PROMPT_TIMEOUT_MS });
+// Admission returns immediately in OpenCode 2; wait for execution before settling the turn.
+export async function prompt(sessionId, body) {
+  await ensureServer();
+  if (!modernApi) return api("POST", `/session/${sessionId}/message`, typeof body === "string" ? { parts: [{ type: "text", text: body }] } : body, { timeoutMs: OPENCODE_PROMPT_TIMEOUT_MS });
+  await api("POST", `/api/session/${sessionId}/prompt`, promptInput(body));
+  return api("POST", `/api/experimental/session/${sessionId}/wait`, undefined, { timeoutMs: OPENCODE_PROMPT_TIMEOUT_MS });
+}
 
 export const setSessionModel = (sessionId, model) =>
   api("POST", `/api/session/${sessionId}/model`, { model });
@@ -309,17 +387,23 @@ export const setSessionModel = (sessionId, model) =>
 const COMMAND_WARMUP_RETRY_MS = 400;
 
 export async function listCommands() {
-  let list = await api("GET", "/command");
+  await ensureServer();
+  const route = modernApi ? "/api/command" : "/command";
+  let list = await api("GET", route);
   // First call after boot can answer [] while commands load — retry once.
   if (!Array.isArray(list) || list.length === 0) {
     await new Promise((r) => setTimeout(r, COMMAND_WARMUP_RETRY_MS));
-    list = await api("GET", "/command");
+    list = await api("GET", route);
   }
   return Array.isArray(list) ? list : [];
 }
 
-export const runCommand = (sessionId, body) =>
-  api("POST", `/session/${sessionId}/command`, body, { timeoutMs: COMMAND_TIMEOUT_MS });
+export async function runCommand(sessionId, body) {
+  await ensureServer();
+  if (!modernApi) return api("POST", `/session/${sessionId}/command`, body, { timeoutMs: COMMAND_TIMEOUT_MS });
+  await api("POST", `/api/session/${sessionId}/command`, { name: body.command, text: body.arguments || "" }, { timeoutMs: COMMAND_TIMEOUT_MS });
+  return api("POST", `/api/experimental/session/${sessionId}/wait`, undefined, { timeoutMs: COMMAND_TIMEOUT_MS });
+}
 
 // Mode = agent on the v2 server (build = full access, plan = read-only).
 export const setSessionAgent = (sessionId, agent) =>
@@ -332,8 +416,10 @@ export const requestPermission = (sessionId, body) =>
 export const pendingPermissions = (sessionId) =>
   api("GET", `/api/session/${sessionId}/permission`);
 
-export const replyPermission = (sessionId, requestId, reply, message = "") =>
-  api("POST", `/api/session/${sessionId}/permission/${requestId}/reply`, { reply, ...(message ? { message } : {}) });
+export async function replyPermission(sessionId, requestId, reply, message = "") {
+  await ensureServer();
+  return api("POST", `/api/session/${sessionId}/permission/${requestId}/reply`, { [modernApi ? "decision" : "reply"]: reply, ...(message ? { message } : {}) });
+}
 
 // The question tool's gates live in the v1 store behind /question — the
 // /api/session mirror answers an empty list even for sessions it holds. That store is
@@ -344,18 +430,40 @@ const scopedQuestion = (path, directory) =>
 
 // Pending gates, all sessions in the directory; each entry carries the que_ id
 // its reply route wants and the sessionID it blocks.
-export const listPendingQuestions = (directory) =>
-  api("GET", scopedQuestion("/question", directory));
+export async function listPendingQuestions(directory, sessionId) {
+  await ensureServer();
+  if (!modernApi) return api("GET", scopedQuestion("/question", directory));
+  const route = sessionId ? `/api/session/${sessionId}/form` : `/api/form${directory ? `?location=${encodeURIComponent(JSON.stringify({ directory }))}` : ""}`;
+  const forms = await api("GET", route);
+  for (const [id, form] of pendingForms) {
+    if ((!sessionId || form.sessionID === sessionId) && !forms.some((item) => item.id === id)) pendingForms.delete(id);
+  }
+  return forms.map((form) => { pendingForms.set(form.id, form); return questionRecord(form); });
+}
 
-export const replyQuestion = (requestId, answers, directory) =>
-  api("POST", scopedQuestion(`/question/${requestId}/reply`, directory), { answers });
+export async function replyQuestion(requestId, answers, directory) {
+  await ensureServer();
+  if (!modernApi) return api("POST", scopedQuestion(`/question/${requestId}/reply`, directory), { answers });
+  const form = pendingForms.get(requestId);
+  if (!form) throw new Error("OpenCode question is no longer pending");
+  const result = await api("POST", `/api/session/${form.sessionID}/form/${requestId}/reply`, { answer: formAnswer(form, answers) });
+  pendingForms.delete(requestId);
+  return result;
+}
 
-export const rejectQuestion = (requestId, directory) =>
-  api("POST", scopedQuestion(`/question/${requestId}/reject`, directory));
+export async function rejectQuestion(requestId, directory) {
+  await ensureServer();
+  if (!modernApi) return api("POST", scopedQuestion(`/question/${requestId}/reject`, directory));
+  const form = pendingForms.get(requestId);
+  if (!form) throw new Error("OpenCode question is no longer pending");
+  const result = await api("DELETE", `/api/session/${form.sessionID}/form/${requestId}`);
+  pendingForms.delete(requestId);
+  return result;
+}
 
 export async function interruptSession(sessionId) {
   const url = await ensureServer();
-  const res = await fetch(`${url}/api/session/${sessionId}/interrupt`, { method: "POST", signal: AbortSignal.timeout(10000) });
+  const res = await fetch(`${url}/api/session/${sessionId}/interrupt`, { method: "POST", headers: authHeaders(), signal: AbortSignal.timeout(10000) });
   if ((res.headers.get("content-type") || "").includes("text/html")) {
     throw new Error(`opencode interrupt unavailable (HTML answer — route missing on this server)`);
   }
@@ -374,7 +482,7 @@ export function subscribeBus(onEvent, { onReconnect = null } = {}) {
     while (!closed) {
       try {
         const url = await ensureServer();
-        const res = await fetch(`${url}/api/event`, { headers: { accept: "text/event-stream" }, signal: abort.signal });
+        const res = await fetch(`${url}/api/event`, { headers: authHeaders({ accept: "text/event-stream" }), signal: abort.signal });
         if (!res.ok || !res.body) throw new Error(`event stream HTTP ${res.status}`);
         if (onReconnect) { try { onReconnect(); } catch {} }
         const reader = res.body.getReader();
@@ -417,7 +525,10 @@ export function subscribeBus(onEvent, { onReconnect = null } = {}) {
 export const stageRevert = (sessionId, messageId, { files = true } = {}) =>
   api("POST", `/api/session/${sessionId}/revert/stage`, { messageID: messageId, files });
 
-export const clearRevert = (sessionId) => api("POST", `/api/session/${sessionId}/revert/clear`);
+export async function clearRevert(sessionId) {
+  await ensureServer();
+  return modernApi ? api("DELETE", `/api/session/${sessionId}/revert`) : api("POST", `/api/session/${sessionId}/revert/clear`);
+}
 
 export const commitRevert = (sessionId) => api("POST", `/api/session/${sessionId}/revert/commit`);
 
@@ -425,8 +536,12 @@ export const deleteSession = (sessionId) =>
   api("DELETE", `/api/session/${sessionId}`).finally(() => v2Sessions.delete(sessionId));
 
 // Test hook: point api() at a fake server instead of spawning opencode.
-export function _useTestBase(url) {
+export function _useTestBase(url, { modern = false, secret = null } = {}) {
   base = url;
+  modernApi = modern;
+  password = secret;
+  adoptedOurs = null;
+  pendingForms.clear();
   // ensureServer short-circuits on a live proc; fake one while overridden.
   proc = url ? { exitCode: null } : null;
   booting = null;
@@ -443,7 +558,10 @@ export function _useTestProc({ fake = null, adoptedPid = null, idleMs = null } =
 }
 
 export function stopServer() {
-  try { proc?.kill(); } catch {}
+  const target = proc || (adoptedOurs ? { pid: adoptedOurs } : null);
   proc = null;
   base = null;
+  adoptedOurs = null;
+  if (target) clearMarker();
+  return terminateServer(target);
 }

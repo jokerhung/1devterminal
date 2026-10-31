@@ -52,6 +52,8 @@ export function questionCardInput(rawQuestions = []) {
 const LIVE_TYPES = new Set([
   "permission.v2.asked",
   "permission.v2.replied",
+  "permission.asked",
+  "permission.replied",
   "question.v2.asked",
   "question.v2.replied",
   "question.v2.rejected",
@@ -87,7 +89,7 @@ export function createOpencodeBusParser({ onEvent, stats = {} }) {
     if (SILENT_TYPES.has(type)) return;
     const data = envelope.data || {};
 
-    if (type === "permission.v2.asked") {
+    if (type === "permission.v2.asked" || type === "permission.asked") {
       onEvent("permission_request", {
         requestId: data.id,
         tool: data.action || "permission",
@@ -96,7 +98,7 @@ export function createOpencodeBusParser({ onEvent, stats = {} }) {
       });
       return;
     }
-    if (type === "permission.v2.replied") {
+    if (type === "permission.v2.replied" || type === "permission.replied") {
       onEvent("permission_resolved", { requestId: data.requestID });
       return;
     }

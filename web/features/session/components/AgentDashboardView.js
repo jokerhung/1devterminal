@@ -534,6 +534,7 @@ function KeyAccessSection({ keys, workspaces, onRefresh }) {
   const dialogTriggerRef = useRef(null);
   const [name, setName] = useState("");
   const [selected, setSelected] = useState([]);
+  const [canCreateWorkspace, setCanCreateWorkspace] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -553,6 +554,7 @@ function KeyAccessSection({ keys, workspaces, onRefresh }) {
     setCreateOpen(!key);
     setName("");
     setSelected((key?.workspaceIds || []).filter((id) => workspaces.some((workspace) => workspace.id === id)));
+    setCanCreateWorkspace(key?.canCreateWorkspace === true);
     setError("");
     setNotice("");
   };
@@ -576,10 +578,10 @@ function KeyAccessSection({ keys, workspaces, onRefresh }) {
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
-  const create = () => mutate("/api/key/create", { name: name.trim() || "Shared key", workspaceIds: selected }, () => {
+  const create = () => mutate("/api/key/create", { name: name.trim() || "Shared key", workspaceIds: selected, canCreateWorkspace }, () => {
     setName(""); setSelected([]); setCreateOpen(false); setNotice("Permanent key created. Use Copy key to share it.");
   });
-  const update = () => mutate("/api/key/permissions", { keyHead: editingKey.keyHead, workspaceIds: selected }, () => {
+  const update = () => mutate("/api/key/permissions", { keyHead: editingKey.keyHead, workspaceIds: selected, canCreateWorkspace }, () => {
     setEditingKey(null);
     setSelected([]);
     setNotice("Workspace permissions saved. Connected clients must reconnect.");
@@ -674,6 +676,13 @@ function KeyAccessSection({ keys, workspaces, onRefresh }) {
               <p className="text-xs font-medium" style={{ color: "var(--text-main)" }}>Workspace permissions</p>
               {workspacePicker(selected, setSelected, editingKey ? `Workspaces for ${editingKey.name}` : "Workspaces for the new key")}
               <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Select the workspaces this key can access. An empty selection grants no workspace access.</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-main)" }}>
+                <input type="checkbox" disabled={busy} checked={canCreateWorkspace} onChange={(event) => setCanCreateWorkspace(event.target.checked)} />
+                Allow creating workspaces
+              </label>
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Off by default. New workspace folders must be inside the selected workspaces. Created workspaces are added to this key’s access.</p>
             </div>
             <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Terminal commands still run with the host account’s permissions.</p>
             {error && <p role="alert" className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>}

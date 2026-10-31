@@ -9,22 +9,28 @@ import crossSpawnParse from "cross-spawn/lib/parse.js";
 import { fileURLToPath } from "url";
 import { DAEMON_VERSION } from "./constants.js";
 import { NODE_BIN, nodeSpawnEnv, PATHS } from "../../lib/constants.js";
+import { daemonSocketPath, LEGACY_DAEMON_PIPE } from "./daemonSocket.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SOCKET_DIR = PATHS.ROOT;
-const SOCKET_PATH = process.platform === "win32"
-  ? "\\\\.\\pipe\\9remote-pty"
-  : path.join(SOCKET_DIR, "pty-daemon.sock");
+let SOCKET_PATH = daemonSocketPath(SOCKET_DIR);
 
 const DAEMON_SCRIPT_SOURCE = path.join(__dirname, "ptyDaemon.js");
 const DAEMON_SCRIPT_DIST = path.join(__dirname, "ptyDaemon.cjs");
 
 // Local modules copied to runtime dir so dev-mode daemon imports resolve.
-const DAEMON_LOCAL_MODULES = ["constants.js", "bufferSlice.js", "daemonRouter.js", "daemonRoutes.js", "daemonKv.js"];
+const DAEMON_LOCAL_MODULES = ["constants.js", "bufferSlice.js", "daemonRouter.js", "daemonRoutes.js", "daemonKv.js", "daemonSocket.js"];
 
 // Run from runtime copy to avoid locking node_modules on Windows during upgrades.
 const DAEMON_RUNTIME_DIR = path.join(SOCKET_DIR, "daemon");
+// An exited launcher keeps nodemon's Windows taskkill /T from reaching the persistent daemon.
+const WINDOWS_DAEMON_LAUNCHER = `const { spawn } = require("node:child_process");
+const child = spawn(process.execPath, process.argv.slice(1), {
+  detached: true, windowsHide: true, stdio: ["ignore", 1, 2]
+});
+child.on("error", (error) => { console.error(error.message); process.exitCode = 1; });
+child.unref();`;
 
 function getCliVersion() {
   if (typeof __CLI_VERSION__ !== "undefined") return __CLI_VERSION__;
@@ -91,15 +97,16 @@ function prepareDaemonCopy(sourceScript) {
   const copiedScript = path.join(scriptDir, path.basename(sourceScript));
   const copiedPtyDir = path.join(scriptDir, "node_modules", "node-pty");
 
-  const copiedModules = () => DAEMON_LOCAL_MODULES.map((n) => path.join(scriptDir, n));
-  const isPrepared = () => !isDev
-    ? fs.existsSync(copiedScript) && fs.existsSync(copiedPtyDir)
-    : fs.existsSync(copiedScript) && fs.existsSync(copiedPtyDir) && copiedModules().every((p) => fs.existsSync(p));
-  if (isPrepared()) {
-    return { script: copiedScript, cwd: scriptDir };
+  const sources = [[sourceScript, copiedScript]];
+  if (isDev) {
+    sources.push(...DAEMON_LOCAL_MODULES.map((name) => [path.join(path.dirname(sourceScript), name), path.join(scriptDir, name)]));
+    sources.push([path.resolve(path.dirname(sourceScript), "..", "..", "lib", "constants.js"), path.join(runtimeDir, "lib", "constants.js")]);
   }
+  const isPrepared = () => fs.existsSync(copiedPtyDir) && sources.every(([source, copy]) =>
+    fs.existsSync(copy) && fs.readFileSync(source).equals(fs.readFileSync(copy)));
 
   try {
+    if (isPrepared()) return { script: copiedScript, cwd: scriptDir };
     fs.mkdirSync(scriptDir, { recursive: true });
     fs.copyFileSync(sourceScript, copiedScript);
 
@@ -262,9 +269,9 @@ function handleMessage(message) {
   }
 }
 
-function isDaemonRunning() {
+function isDaemonRunning(socketPath = SOCKET_PATH) {
   return new Promise((resolve) => {
-    const testClient = net.connect(SOCKET_PATH);
+    const testClient = net.connect(socketPath);
     const timeout = setTimeout(() => {
       testClient.destroy();
       resolve(false);
@@ -338,8 +345,10 @@ async function startDaemon() {
     logFd = "ignore";
   }
 
-  const daemon = spawn(NODE_BIN, [script], {
+  const args = process.platform === "win32" ? ["--input-type=commonjs", "--eval", WINDOWS_DAEMON_LAUNCHER, script] : [script];
+  const daemon = spawn(NODE_BIN, args, {
     detached: true,
+    windowsHide: true,
     stdio: ["ignore", logFd, logFd],
     cwd: cwd,
     env: nodeSpawnEnv(),
@@ -419,6 +428,10 @@ async function _connectToDaemon() {
   if (connected) return true;
 
   try {
+    // Keep reachable legacy terminals alive while isolating new Windows installations and tests.
+    if (process.platform === "win32" && !process.env.NREMOTE_HOME && !(await isDaemonRunning()) && await isDaemonRunning(LEGACY_DAEMON_PIPE)) {
+      SOCKET_PATH = LEGACY_DAEMON_PIPE;
+    }
     if (await isDaemonRunning()) {
       const v = await probeDaemonVersion();
       if (v !== DAEMON_VERSION) {
@@ -427,7 +440,8 @@ async function _connectToDaemon() {
       }
     }
     if (!(await isDaemonRunning())) {
-      if (!(await startDaemon())) {
+      SOCKET_PATH = daemonSocketPath(SOCKET_DIR);
+      if (!(await isDaemonRunning()) && !(await startDaemon())) {
         console.error("[DaemonClient] ❌ Failed to start daemon");
         return false;
       }

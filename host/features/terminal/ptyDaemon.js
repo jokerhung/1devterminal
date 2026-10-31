@@ -11,12 +11,11 @@ import { resolveShell, buildShellArgs, DAEMON_VERSION } from "./constants.js";
 import { createRouter } from "./daemonRouter.js";
 import { createKvStore, kvRoutes } from "./daemonKv.js";
 import { takeBufferTail, takeBufferRange, bufferTotal } from "./bufferSlice.js";
+import { daemonSocketPath } from "./daemonSocket.js";
 
 // NREMOTE_HOME keeps daemon state inside client root to isolate test daemon.
 const SOCKET_DIR = process.env.NREMOTE_HOME || path.join(os.homedir(), ".9remote");
-const SOCKET_PATH = process.platform === "win32"
-  ? "\\\\.\\pipe\\9remote-pty"
-  : path.join(SOCKET_DIR, "pty-daemon.sock");
+const SOCKET_PATH = daemonSocketPath(SOCKET_DIR);
 
 // PID file for updater and app lifecycle management.
 const PID_FILE = path.join(SOCKET_DIR, "pids", "ptyDaemon.pid");

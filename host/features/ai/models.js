@@ -397,9 +397,8 @@ export function resolveDefaultEffort(engine) {
 // Falls back to [] (caller keeps the CLI spawn path as last resort).
 export async function listOpencodeModelOptionsFromServer() {
   try {
-    const { ensureServer } = await import("./opencodeServer.js");
-    const base = await ensureServer();
-    const res = await fetch(`${base}/api/model`, { signal: AbortSignal.timeout(10000) });
+    const { fetchServer } = await import("./opencodeServer.js");
+    const res = await fetchServer("/api/model", { signal: AbortSignal.timeout(10000) });
     if (!res.ok) return [];
     const body = await res.json();
     const models = Array.isArray(body?.data) ? body.data : [];

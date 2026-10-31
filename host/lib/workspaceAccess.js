@@ -1,6 +1,7 @@
 import path from "node:path";
 import { canonicalize, isSensitivePath } from "../features/fileExplorer/pathGuard.js";
 import { findGitRoot } from "../features/terminal/workspaceMigration.js";
+import { findKey, updateKeyPermissions } from "../cli/utils/state.js";
 
 const ACCESS_DENIED = "Workspace access denied";
 const SESSION_EVENTS = new Set([
@@ -36,6 +37,7 @@ const fold = (value) => process.platform === "win32" || process.platform === "da
 
 export function createWorkspaceAccess({ record, localUi = false, workspaces, sessions, sessionWorkspaces }) {
   const unrestricted = localUi || (!!record && !Array.isArray(record.workspaceIds));
+  const canCreateWorkspace = unrestricted || record?.canCreateWorkspace === true;
   const workspaceIds = new Set(record?.workspaceIds || []);
   const roots = [...workspaceIds].map((id) => workspaces.get(id)?.path).filter(Boolean).map(canonicalize).filter(Boolean);
   const canWorkspace = (id) => unrestricted || (workspaceIds.has(id) && workspaces.has(id));
@@ -62,10 +64,20 @@ export function createWorkspaceAccess({ record, localUi = false, workspaces, ses
   const rowAllowed = (row) => (!row.openSessionId || canSession(row.openSessionId)) && canPath(row.cwd || row.path || row.workspacePath);
   const filterMap = (data) => Object.fromEntries(Object.entries(data || {}).filter(([id]) => canSession(id)));
   const filterRows = (rows) => Array.isArray(rows) ? rows.filter(rowAllowed) : [];
+  const grantWorkspace = (id) => {
+    if (unrestricted) return true;
+    const current = findKey(record?.key);
+    if (current?.canCreateWorkspace !== true || !Array.isArray(current.workspaceIds)) return false;
+    const updated = updateKeyPermissions(current.key, [...current.workspaceIds, id], true);
+    if (!updated) return false;
+    workspaceIds.add(id);
+    return true;
+  };
 
   function allows(event, data) {
     if (unrestricted) return true;
     if (READ_EVENTS.has(event) || TRANSFER_EVENTS.has(event)) return true;
+    if (event === "createWorkspace" || event === "createGroup") return canCreateWorkspace && (!data?.path || canPath(data.path));
     if (SESSION_EVENTS.has(event)) {
       const id = typeof data === "string" ? data : data?.sessionId;
       if (!canSession(id)) return false;
@@ -131,7 +143,7 @@ export function createWorkspaceAccess({ record, localUi = false, workspaces, ses
     return PUBLIC_OUTPUT.has(event) ? args : null;
   }
 
-  return { unrestricted, workspaceIds, canWorkspace, canSession, canPath, allows, filterReply, output };
+  return { unrestricted, canCreateWorkspace, grantWorkspace, workspaceIds, canWorkspace, canSession, canPath, allows, filterReply, output };
 }
 
 // Guard registered feature listeners on both Socket.IO and RTC HostBus.

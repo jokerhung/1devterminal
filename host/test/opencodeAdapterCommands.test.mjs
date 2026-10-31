@@ -25,6 +25,8 @@ function fakeServer(commands = ["init", "review", "find-skills"]) {
     setSessionAgent: async (sessionId, agent) => { state.patches.push({ sessionId, agent }); },
     interruptSession: async () => {},
     activeSessions: async () => ({}),
+    listMessages: async () => [],
+    listPendingQuestions: async () => [],
     subscribeBus: () => ({ close() {} }),
   };
 }
@@ -86,7 +88,7 @@ await test("unknown slash text and plain text stay prompts", async () => {
   await tick();
   assert.equal(server.state.ran.length, 0);
   assert.equal(server.state.prompted.length, 1);
-  assert.equal(server.state.prompted[0].body.prompt.text, "/not-a-command hello");
+  assert.equal(server.state.prompted[0].body.parts[0].text, "/not-a-command hello");
 });
 
 await test("mid-text slash is never intercepted", async () => {
@@ -243,6 +245,9 @@ await test("a pick landing inside the create RTT is caught and drains later", as
   const server = fakeServer();
   let release;
   const gate = new Promise((r) => (release = r));
+  let finishTurn;
+  const turn = new Promise((resolve) => { finishTurn = resolve; });
+  server.prompt = () => turn;
   server.createSession = (cwd, extras) => gate.then(() => ({ id: "ses_new", born: extras }));
   server.setSessionModel = async (sid, body) => { order.push(["model", body.id]); };
   const { adapter } = makeAdapter(server);
@@ -253,7 +258,7 @@ await test("a pick landing inside the create RTT is caught and drains later", as
   release();
   await tick(40);
   assert.equal(order.length, 0, "no PATCH around the first turn's admission");
-  adapter.handleEvent({ type: "session.next.step.ended", data: { sessionID: adapter.activeSessionId, finish: "stop", tokens: { input: 1 } } });
+  finishTurn();
   await tick(40);
   assert.deepEqual(order, [["model", "claude-opus-5"]], "the raced pick lands at turn end");
 });

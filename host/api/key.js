@@ -16,6 +16,12 @@ import { parseJsonBody } from "../lib/router.js";
 import { disconnectKeyClients } from "../transport/server.js";
 
 const KEY_NAME_MAX = 80;
+function validateCreationPermission(value, res) {
+  if (value === undefined || typeof value === "boolean") return true;
+  jsonErr(res, 400, "canCreateWorkspace must be a boolean");
+  return false;
+}
+
 function validateWorkspaceIds(value, res) {
   const known = new Set((loadWorkspaces()?.workspaces || []).map((workspace) => workspace.id));
   if (!Array.isArray(value) || value.some((id) => typeof id !== "string" || !known.has(id))) {
@@ -93,6 +99,7 @@ export async function handleCreatePermanentKey(req, res) {
   try {
     const body = await parseJsonBody(req, res);
     if (!body) return;
+    if (!validateCreationPermission(body.canCreateWorkspace, res)) return;
     const workspaceIds = validateWorkspaceIds(body.workspaceIds, res);
     if (!workspaceIds) return;
     if (typeof body.name !== "string" || !body.name.trim() || body.name.length > KEY_NAME_MAX) {
@@ -106,7 +113,7 @@ export async function handleCreatePermanentKey(req, res) {
     if (!(await registerSession(key, workerUrl, state.tunnelUrl))) {
       jsonErr(res, 502, "Could not register the new key with the server"); return;
     }
-    const record = saveAdditionalKey(machineId, key, body.name.trim(), workspaceIds);
+    const record = saveAdditionalKey(machineId, key, body.name.trim(), workspaceIds, body.canCreateWorkspace);
     if (!record) {
       await unregisterSession(key, workerUrl);
       jsonErr(res, 500, "Could not save the new key"); return;
@@ -125,10 +132,11 @@ export function handleListPermanentKeys(_req, res) {
 export async function handleUpdateKeyPermissions(req, res) {
   const body = await parseJsonBody(req, res);
   if (!body) return;
+  if (!validateCreationPermission(body.canCreateWorkspace, res)) return;
   const workspaceIds = validateWorkspaceIds(body.workspaceIds, res);
   if (!workspaceIds) return;
   if (findKey(body.keyHead)?.key === loadKey()?.key) { jsonErr(res, 400, "The host key always has access to all workspaces"); return; }
-  const key = updateKeyPermissions(String(body.keyHead || ""), workspaceIds);
+  const key = updateKeyPermissions(String(body.keyHead || ""), workspaceIds, body.canCreateWorkspace);
   if (!key) { jsonErr(res, 404, "Key not found"); return; }
   disconnectKeyClients(headOf(key.key));
   jsonOk(res, { ok: true, key });

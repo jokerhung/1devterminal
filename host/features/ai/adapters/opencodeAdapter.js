@@ -332,7 +332,7 @@ export class OpenCodeAdapter {
     this.bus = this.server.subscribeBus((envelope) => {
       const data = envelope?.data;
       if (!data || data.sessionID !== this.activeSessionId) return;
-      if (envelope.type === "session.next.step.started" && data.model?.id) {
+      if ((envelope.type === "session.next.step.started" || envelope.type === "session.step.started") && data.model?.id) {
         const full = data.model.providerID ? `${data.model.providerID}/${data.model.id}` : data.model.id;
         // A pick still waiting for its idle window outranks the in-flight
         // turn's own model — the engine's report describes the CURRENT turn,
@@ -442,7 +442,7 @@ export class OpenCodeAdapter {
         if (!staged) {
           const slash = /^\/([\w.-]+)(?:\s+([\s\S]*))?$/.exec((promptText || "").trim());
           if (slash && this._commandNames().has(slash[1])) {
-            await this._followTurn(this.activeSessionId, this.server.runCommand(this.activeSessionId, {
+            await this._followTurn(this.activeSessionId, () => this.server.runCommand(this.activeSessionId, {
               command: slash[1],
               arguments: slash[2] || "",
               // No variant: same no-variants catalog rule as the model PATCH.
@@ -458,7 +458,7 @@ export class OpenCodeAdapter {
             return;
           }
         }
-        await this._followTurn(this.activeSessionId, this.server.prompt(this.activeSessionId, buildPromptBody(promptText, staged)));
+        await this._followTurn(this.activeSessionId, () => this.server.prompt(this.activeSessionId, buildPromptBody(promptText, staged)));
         this._sessionRan = true;
         // The pane header needs a title instantly; the server's own (from the
         // title model, like the TUI) lands a beat later and replaces this.
@@ -484,12 +484,8 @@ export class OpenCodeAdapter {
     });
   }
 
-  // The v1 routes persist every part but relay none of the assistant's content
-  // on the event bus (only the user's message is published), so the pane follows
-  // the turn by polling the store those routes write. `done` is the route call
-  // itself, already in flight; it resolves when the whole agent loop ends, which
-  // is the authoritative turn end.
-  async _followTurn(sessionId, done) {
+  // Read the baseline before submission so fast replies cannot be mistaken for history.
+  async _followTurn(sessionId, submit) {
     const sentText = new Map();   // part id → chars already emitted
     const toolState = new Map();  // part id → last emitted state.status
     const counted = new Set();    // message ids whose tokens already hit stats
@@ -544,7 +540,7 @@ export class OpenCodeAdapter {
     const carded = new Set();
     const askCards = async () => {
       let pending;
-      try { pending = await this.server.listPendingQuestions(this.cwd); } catch { return; }
+      try { pending = await this.server.listPendingQuestions(this.cwd, sessionId); } catch { return; }
       const mine = (pending || []).filter((q) => q.sessionID === sessionId);
       for (const q of mine) {
         if (carded.has(q.id)) continue;
@@ -567,7 +563,7 @@ export class OpenCodeAdapter {
     ]);
     this._pollTimer = setInterval(poll, OPENCODE_POLL_MS);
     try {
-      await done;
+      if (!this._interrupted) await submit();
     } finally {
       clearInterval(this._pollTimer);
       this._pollTimer = null;

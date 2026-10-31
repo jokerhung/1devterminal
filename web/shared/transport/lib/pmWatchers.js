@@ -105,16 +105,17 @@ export function attachWatchers(pm) {
   document.addEventListener("resume", resumeHandler);
   document.addEventListener("freeze", freezeHandler);
 
-  // Network handover invalidates NAT bindings; trigger recovery on network change.
+  // Connection metrics change too; recover dead carriers without replacing a healthy WS.
   const netHandler = () => {
     clearTimeout(pm._netDebounceTimer);
     pm._netDebounceTimer = setTimeout(() => {
       if (navigator.onLine === false) { termLog("switch", "net-change: still offline → wait"); return; }
       debugLog("transport", "[pm] network change → probe rtc");
-      termLog("switch", `net-change: online=${navigator.onLine} → kick sig + ws + rtc`);
+      termLog("switch", `net-change: online=${navigator.onLine} → check carriers`);
       pm._sig?.retryNow("net-change");
-      // Retry WS immediately on network change to avoid waiting for backoff.
-      pm.retryNow("net-change");
+      const ws = pm._adapters.get("ws");
+      const wsKicked = kickWsZombie(pm, "net-change");
+      if (!wsKicked && !ws?.ready && ws?.state !== ADAPTER_STATE.connecting) pm.retryNow("net-change");
       // Reset restart attempts and clear give-up flag on new network.
       termLog("switch", `RESET attempts (was ${pm._rtcRestartAttempts}) givenUp=${pm._rtcGivenUp} reason=net-change`);
       pm._rtcRestartAttempts = 0;
