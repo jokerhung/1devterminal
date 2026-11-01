@@ -53,7 +53,7 @@ export default {
     documentation: "Tài liệu",
     reset: "Khởi động lại tunnel và kết nối lại thiết bị",
     resetShort: "Khởi động lại",
-    shutdown: "Thoát 9Remote (dừng máy chủ, đóng tunnel và thoát)",
+    shutdown: "Thoát 1Terminal (dừng máy chủ, đóng tunnel và thoát)",
     shutdownShort: "Thoát",
     lightMode: "Chuyển sang giao diện sáng",
     darkMode: "Chuyển sang giao diện tối",

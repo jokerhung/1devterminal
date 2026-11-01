@@ -392,46 +392,91 @@ export function recoverFromOpencodeTranscript(cwd, sessionId) {
   const sqlite = loadSqlite();
   if (!sqlite) return null;
 
-  const dbPath = path.join(os.homedir(), ".local", "share", "opencode", "opencode.db");
-  if (!fs.existsSync(dbPath)) return null;
+  const dbPaths = [
+    path.join(os.homedir(), ".local", "share", "opencode", "opencode.db"),
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "opencode", "opencode.db") : null
+  ].filter(Boolean);
+  const dbPath = dbPaths.find((candidate) => fs.existsSync(candidate));
+  if (!dbPath) return null;
 
   let db;
   try {
     db = new sqlite.DatabaseSync(dbPath, { readOnly: true });
-    // Validate session directory matches cwd to prevent cross-project resume.
-    const session = db.prepare("SELECT directory FROM session WHERE id = ?").get(sessionId);
-    if (!session) return null;
-    if (cwd && session.directory && path.resolve(session.directory) !== path.resolve(cwd)) return null;
-
-    const parts = db.prepare(
-      "SELECT p.message_id AS mid, p.data AS pdata, m.data AS mdata " +
-      "FROM part p JOIN message m ON m.id = p.message_id " +
-      "WHERE p.session_id = ? ORDER BY p.rowid"
-    ).all(sessionId);
-    if (!parts.length) return null;
-
     const events = [];
     let seq = 1;
-    for (const row of parts) {
-      let pd, md;
-      try { pd = JSON.parse(row.pdata); md = JSON.parse(row.mdata); } catch { continue; }
-      const role = md?.role;
-      if (pd.type === "text" && typeof pd.text === "string" && pd.text.trim()) {
-        if (role === "user") {
-          if (isHarnessTurn(pd.text)) continue;
-          const clean = stripHarnessWrapping(pd.text);
-          if (!clean) continue;
-          events.push({ seq: seq++, event: "user_message", data: { text: clean } });
-        } else if (role === "assistant") {
-          const clean = stripHarnessWrapping(pd.text);
-          if (!clean) continue;
-          events.push({ seq: seq++, event: "delta", data: { text: clean } });
-          events.push({ seq: seq++, event: "turn_complete", data: { stats: {} } });
+    const table = (name) => db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
+
+    // OpenCode 1.18+ stores messages directly in session_message. Keep the
+    // older part/message reader below for databases created by earlier releases.
+    if (table("session_v2") && table("session_message")) {
+      const session = db.prepare("SELECT directory FROM session_v2 WHERE id = ?").get(sessionId);
+      if (!session) return null;
+      if (cwd && session.directory && !sameDir(session.directory, cwd)) return null;
+
+      const rows = db.prepare(
+        "SELECT type, data FROM session_message WHERE session_id = ? ORDER BY seq"
+      ).all(sessionId);
+      if (!rows.length) return null;
+
+      const emitText = (text, event) => {
+        if (typeof text !== "string" || !text.trim()) return;
+        const clean = stripHarnessWrapping(text);
+        if (clean) events.push({ seq: seq++, event, data: { text: clean } });
+      };
+      for (const row of rows) {
+        let data;
+        try { data = JSON.parse(row.data); } catch { continue; }
+        if (row.type === "user") {
+          if (!isHarnessTurn(data?.text || "")) emitText(data?.text, "user_message");
+          continue;
         }
-      } else if (pd.type === "reasoning" && typeof pd.text === "string" && pd.text.trim()) {
-        events.push({ seq: seq++, event: "thinking", data: { text: pd.text } });
-      } else if (pd.type === "tool") {
-        for (const ev of opencodePartEvents(pd)) events.push({ seq: seq++, ...ev });
+        if (row.type !== "assistant") continue;
+        let completedText = false;
+        for (const part of Array.isArray(data?.content) ? data.content : []) {
+          if (part?.type === "reasoning") emitText(part.text, "thinking");
+          else if (part?.type === "text") {
+            emitText(part.text, "delta");
+            completedText = completedText || Boolean(part.text?.trim());
+          } else if (part?.type === "tool") {
+            for (const ev of opencodePartEvents(part)) events.push({ seq: seq++, ...ev });
+          }
+        }
+        if (completedText) events.push({ seq: seq++, event: "turn_complete", data: { stats: {} } });
+      }
+    } else {
+      // Validate session directory matches cwd to prevent cross-project resume.
+      const session = db.prepare("SELECT directory FROM session WHERE id = ?").get(sessionId);
+      if (!session) return null;
+      if (cwd && session.directory && !sameDir(session.directory, cwd)) return null;
+
+      const parts = db.prepare(
+        "SELECT p.message_id AS mid, p.data AS pdata, m.data AS mdata " +
+        "FROM part p JOIN message m ON m.id = p.message_id " +
+        "WHERE p.session_id = ? ORDER BY p.rowid"
+      ).all(sessionId);
+      if (!parts.length) return null;
+
+      for (const row of parts) {
+        let pd, md;
+        try { pd = JSON.parse(row.pdata); md = JSON.parse(row.mdata); } catch { continue; }
+        const role = md?.role;
+        if (pd.type === "text" && typeof pd.text === "string" && pd.text.trim()) {
+          if (role === "user") {
+            if (isHarnessTurn(pd.text)) continue;
+            const clean = stripHarnessWrapping(pd.text);
+            if (!clean) continue;
+            events.push({ seq: seq++, event: "user_message", data: { text: clean } });
+          } else if (role === "assistant") {
+            const clean = stripHarnessWrapping(pd.text);
+            if (!clean) continue;
+            events.push({ seq: seq++, event: "delta", data: { text: clean } });
+            events.push({ seq: seq++, event: "turn_complete", data: { stats: {} } });
+          }
+        } else if (pd.type === "reasoning" && typeof pd.text === "string" && pd.text.trim()) {
+          events.push({ seq: seq++, event: "thinking", data: { text: pd.text } });
+        } else if (pd.type === "tool") {
+          for (const ev of opencodePartEvents(pd)) events.push({ seq: seq++, ...ev });
+        }
       }
     }
     if (events.length === 0) return null;

@@ -231,11 +231,11 @@ function TerminalSidebar({
             logo must read as static chrome, not a row button. */}
         <button
           onClick={() => { vibrate(); setViewStack([{ type: "list" }]); }}
-          title="9Remote"
+          title="1Terminal"
           className="flex items-center gap-2 min-w-0 flex-shrink-0"
         >
-          <img src="/icon-192.png" alt="9Remote" draggable={false} className="w-4 h-4 rounded-[4px] object-contain flex-shrink-0 pointer-events-none select-none" />
-          <span className="text-[13px] font-semibold text-text truncate">9Remote</span>
+          <img src="/icon-192.png" alt="1Terminal" draggable={false} className="w-4 h-4 rounded-[4px] object-contain flex-shrink-0 pointer-events-none select-none" />
+          <span className="text-[13px] font-semibold text-text truncate">1Terminal</span>
         </button>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {SHOW_PAIR_DEVICE && (

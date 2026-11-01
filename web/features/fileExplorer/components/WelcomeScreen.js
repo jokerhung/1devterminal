@@ -32,7 +32,7 @@ export default function WelcomeScreen({ recentWorkspaces = [], onSelectWorkspace
       <div className="w-full max-w-2xl px-8 py-16 flex flex-col items-center">
         {/* Header */}
         <div className="text-center mb-10">
-          <h1 className="text-text text-4xl font-semibold mb-3">Welcome to 9Remote</h1>
+          <h1 className="text-text text-4xl font-semibold mb-3">Welcome to 1Terminal</h1>
           <p className="text-text-muted text-base">Open a folder to get started</p>
         </div>
 

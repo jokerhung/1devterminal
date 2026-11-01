@@ -173,9 +173,9 @@ function Section({ title, count, first, children }) {
 // Phase → { text builder, icon, spinning } — config-driven UI states
 const UPDATE_PHASES = {
   idle:       { icon: "system_update", spin: false, text: (v) => `Version ${v} available` },
-  confirm:    { icon: "system_update", spin: false, text: () => "Update 9remote? Restarts connection (~1 min)" },
+  confirm:    { icon: "system_update", spin: false, text: () => "Update 1Terminal? Restarts connection (~1 min)" },
   updating:   { icon: "progress_activity", spin: true, text: (v, s) => `Updating… ${s}s` },
-  restarting: { icon: "restart_alt", spin: true, text: (v, s) => `Updating 9remote… ${s}s` },
+  restarting: { icon: "restart_alt", spin: true, text: (v, s) => `Updating 1Terminal… ${s}s` },
   ready:      { icon: "check_circle", spin: false, text: () => "Updated! Reloading…" },
   timeout:    { icon: "warning", spin: false, text: () => "Taking longer than expected" },
 };
@@ -621,7 +621,7 @@ export default function MainScreen({
               <span className="material-symbols-outlined" style={{ fontSize: 21, color: "var(--text-main)" }}>terminal</span>
             </div>
             <div className="flex flex-col leading-none min-w-0">
-              <span className="brand-grad-text text-[20px] font-bold tracking-[-0.02em]">9Remote</span>
+              <span className="brand-grad-text text-[20px] font-bold tracking-[-0.02em]">1Terminal</span>
               {version && <span className="font-mono text-[11px] mt-[5px]" style={{ color: "var(--text-subtle)" }}>v{version}</span>}
             </div>
             <div className="flex-1" />
@@ -767,7 +767,7 @@ export default function MainScreen({
 
       {showShutdownConfirm && (
         <ConfirmPopup
-          message="Shutdown 9Remote completely? This will stop the server, close the tunnel and quit the app."
+          message="Shutdown 1Terminal completely? This will stop the server, close the tunnel and quit the app."
           confirmLabel="Shutdown"
           confirmDanger
           onConfirm={() => { setShowShutdownConfirm(false); onShutdown?.(); }}

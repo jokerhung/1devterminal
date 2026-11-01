@@ -50,7 +50,7 @@ export default function AdminShell({ children }) {
             9
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm font-bold tracking-tight text-text truncate">9Remote Admin</h1>
+            <h1 className="text-sm font-bold tracking-tight text-text truncate">1Terminal Admin</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-xs text-text-muted truncate">{me.username}</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-surface-2 text-text-muted border border-border-subtle">
@@ -120,7 +120,7 @@ export default function AdminShell({ children }) {
         </button>
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs bg-brand-500 text-white">9</div>
-          <h1 className="text-sm font-semibold tracking-tight">9Remote Admin</h1>
+          <h1 className="text-sm font-semibold tracking-tight">1Terminal Admin</h1>
         </div>
         <ThemeToggle className="rounded-[6px]" />
       </header>

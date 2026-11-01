@@ -165,9 +165,9 @@ function Section({ title, count, first, open = true, onToggle, children }) {
 
 const UPDATE_PHASES = {
   idle:       { icon: "system_update", spin: false, text: (v) => `Version ${v} available` },
-  confirm:    { icon: "system_update", spin: false, text: () => "Update 9remote? Restarts connection (~1 min)" },
+  confirm:    { icon: "system_update", spin: false, text: () => "Update 1Terminal? Restarts connection (~1 min)" },
   updating:   { icon: "progress_activity", spin: true, text: (v, s) => `Updating… ${s}s` },
-  restarting: { icon: "restart_alt", spin: true, text: (v, s) => `Updating 9remote… ${s}s` },
+  restarting: { icon: "restart_alt", spin: true, text: (v, s) => `Updating 1Terminal… ${s}s` },
   ready:      { icon: "check_circle", spin: false, text: () => "Updated! Reloading…" },
   timeout:    { icon: "warning", spin: false, text: () => "Taking longer than expected" }
 };

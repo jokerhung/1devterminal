@@ -38,9 +38,9 @@ const SUPERPOWERS = [
 ];
 
 const PHONES = [
-  { src: "/screenshots/mobile-1.webp", alt: "Claude Code running in 9Remote on a phone" },
-  { src: "/screenshots/mobile-2.webp", alt: "File explorer in 9Remote on a phone" },
-  { src: "/screenshots/mobile-3.webp", alt: "System dashboard in 9Remote on a phone" }
+  { src: "/screenshots/mobile-1.webp", alt: "Claude Code running in 1Terminal on a phone" },
+  { src: "/screenshots/mobile-2.webp", alt: "File explorer in 1Terminal on a phone" },
+  { src: "/screenshots/mobile-3.webp", alt: "System dashboard in 1Terminal on a phone" }
 ];
 
 export default function HeroSection() {
@@ -130,12 +130,12 @@ export default function HeroSection() {
                     <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full" style={{ background: "#28C840" }} />
                   </div>
                   <span className="ml-2 sm:ml-3 text-[10px] sm:text-xs font-mono truncate min-w-0" style={{ color: THEME.textDim }}>
-                    9remote<span className="hidden sm:inline"> — desktop</span>
+                    1Terminal<span className="hidden sm:inline"> — desktop</span>
                   </span>
                 </div>
                 <img
                   src="/screenshots/desktop-ide.webp"
-                  alt="9Remote desktop workspace: terminal, editor and AI agent panes side by side"
+                  alt="1Terminal desktop workspace: terminal, editor and AI agent panes side by side"
                   className="w-full block"
                 />
               </div>

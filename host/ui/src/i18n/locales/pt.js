@@ -50,7 +50,7 @@ export default {
     documentation: "Documentação",
     reset: "Reconfigurar túnel e reconectar clientes",
     resetShort: "Reconfigurar",
-    shutdown: "Desligar 9Remote (parar servidor, fechar túnel, sair)",
+    shutdown: "Desligar 1Terminal (parar servidor, fechar túnel, sair)",
     shutdownShort: "Desligar",
     lightMode: "Alternar para modo claro",
     darkMode: "Alternar para modo escuro",

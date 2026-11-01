@@ -127,7 +127,7 @@ export default function SettingsMenu({
         >
           <div className="flex items-center gap-2 px-2 py-3 mb-2">
             <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--brand-500)" }}>settings</span>
-            <span className="text-sm font-bold" style={{ color: "var(--text-main)" }}>9Remote</span>
+            <span className="text-sm font-bold" style={{ color: "var(--text-main)" }}>1Terminal</span>
           </div>
 
           <div className="flex-1 flex flex-col gap-1">

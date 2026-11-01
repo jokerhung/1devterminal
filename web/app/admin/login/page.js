@@ -66,7 +66,7 @@ export default function AdminLoginPage() {
               </div>
               <div>
                 <span className="text-[11px] font-mono tracking-wider uppercase text-brand-500 font-semibold block">Console</span>
-                <h1 className="text-xl font-bold tracking-tight text-text">9Remote Admin</h1>
+                <h1 className="text-xl font-bold tracking-tight text-text">1Terminal Admin</h1>
               </div>
             </div>
             <ThemeToggle className="rounded-xl border border-border-subtle" />

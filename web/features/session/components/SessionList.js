@@ -154,7 +154,7 @@ export default function SessionList({
         style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <img src="/icon-192.png" alt="9Remote" draggable={false} className="w-5 h-5 rounded-brand flex-shrink-0" />
+          <img src="/icon-192.png" alt="1Terminal" draggable={false} className="w-5 h-5 rounded-brand flex-shrink-0" />
           <h1 className="text-text text-lg font-semibold truncate">{t("sessions.headerTitle")}</h1>
           <span
             className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? "bg-green-500" : "bg-red-500 animate-pulse"}`}

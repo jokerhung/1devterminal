@@ -1,6 +1,6 @@
 // Document title — synced 100% with agent/ui/src/lib/titleMarquee.js
-const BASE = "9Remote";
-const SCROLL = "9Remote • "; // marquee body, rotates char-by-char
+const BASE = "1Terminal";
+const SCROLL = "1Terminal • "; // marquee body, rotates char-by-char
 const STEP_MS = 400;
 
 let timer = null;

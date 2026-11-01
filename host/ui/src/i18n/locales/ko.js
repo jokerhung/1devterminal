@@ -50,7 +50,7 @@ export default {
     documentation: "설명서",
     reset: "터널 재설정 및 클라이언트 재연결",
     resetShort: "재설정",
-    shutdown: "9Remote 종료(서버 중지, 터널 닫기, 종료)",
+    shutdown: "1Terminal 종료(서버 중지, 터널 닫기, 종료)",
     shutdownShort: "종료",
     lightMode: "라이트 모드로 전환",
     darkMode: "다크 모드로 전환",

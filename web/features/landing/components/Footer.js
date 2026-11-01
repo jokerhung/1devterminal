@@ -49,16 +49,16 @@ export default function Footer() {
             <div className="flex items-center gap-3 mb-4">
               <img
                 src="/icon-192.png"
-                alt="9Remote Logo"
+                alt="1Terminal Logo"
                 className="w-9 h-9 rounded-lg object-contain shadow-md shadow-brand-500/20"
               />
-              <h3 className="text-xl font-bold" style={{ color: THEME.text }}>9Remote</h3>
+              <h3 className="text-xl font-bold" style={{ color: THEME.text }}>1Terminal</h3>
             </div>
             <p className="text-sm max-w-md mb-4" style={{ color: THEME.textDim }}>
               Remote everything, everywhere. Remote IDE, 60fps desktop, files, emulator & vibe coding on any screen.
             </p>
             <p className="text-xs" style={{ color: THEME.textMuted }}>
-              © {new Date().getFullYear()} 9Remote. All rights reserved.
+              © {new Date().getFullYear()} 1Terminal. All rights reserved.
               {version && <span className="ml-2">v{version}</span>}
             </p>
           </div>

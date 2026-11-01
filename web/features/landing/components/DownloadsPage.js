@@ -85,7 +85,7 @@ export default function DownloadsPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-3" style={{ color: THEME.text }}>
-              Download 9Remote
+              Download 1Terminal
             </h1>
             <p className="text-base sm:text-lg max-w-xl mx-auto" style={{ color: THEME.textDim }}>
               The host app serves your terminals, screen and files. Install it on the machine you leave running.
@@ -152,7 +152,7 @@ export default function DownloadsPage() {
           <section className="text-center">
             <h2 className="text-lg font-bold mb-2" style={{ color: THEME.text }}>On a phone or tablet?</h2>
             <p className="text-sm mb-4" style={{ color: THEME.textDim }}>
-              9Remote is a client on mobile — pair it with a host using the QR code.
+              1Terminal is a client on mobile — pair it with a host using the QR code.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold px-4 py-2 rounded-lg border" style={{ background: THEME.bgPanel, color: THEME.text, borderColor: THEME.border }}>

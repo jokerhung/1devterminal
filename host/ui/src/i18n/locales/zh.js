@@ -50,7 +50,7 @@ export default {
     documentation: "文档",
     reset: "重置隧道并重新连接客户端",
     resetShort: "重置",
-    shutdown: "关闭 9Remote(停止服务器、关闭隧道、退出)",
+    shutdown: "关闭 1Terminal(停止服务器、关闭隧道、退出)",
     shutdownShort: "关闭",
     lightMode: "切换到浅色模式",
     darkMode: "切换到深色模式",

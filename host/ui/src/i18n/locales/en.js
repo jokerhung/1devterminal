@@ -72,7 +72,7 @@ export default {
     clear: "Clear",
   },
   system: {
-    agent: "9Remote",
+    agent: "1Terminal",
     machine: "Machine",
     remoteDesktop: "Remote Desktop",
     uptime: "Uptime",
@@ -163,7 +163,7 @@ export default {
     documentation: "Documentation",
     reset: "Reset the tunnel and reconnect clients",
     resetShort: "Reset",
-    shutdown: "Shutdown 9Remote (stop server, close tunnel and quit)",
+    shutdown: "Shutdown 1Terminal (stop server, close tunnel and quit)",
     shutdownShort: "Shutdown",
     lightMode: "Switch to light mode",
     darkMode: "Switch to dark mode",
@@ -256,7 +256,7 @@ export default {
   },
   dialogs: {
     resetConfirm: "Reset and stop the tunnel? Remote clients will be disconnected.",
-    shutdownConfirm: "Shutdown 9Remote completely? This will stop the server, close the tunnel and quit the app.",
+    shutdownConfirm: "Shutdown 1Terminal completely? This will stop the server, close the tunnel and quit the app.",
     deviceDisconnect: "Disconnect and remove device {id}...? The client will be disconnected and need approval again next time.",
     deviceRemovePending: "Remove pending device {id}...? It will need a fresh approval request to connect again.",
     deviceRemoveOffline: "Remove device {id}...? It will need approval again next time.",

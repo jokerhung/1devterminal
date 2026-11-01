@@ -50,7 +50,7 @@ export default {
     documentation: "Dokumentacja",
     reset: "Zresetuj tunel i ponownie połącz klientów",
     resetShort: "Zresetuj",
-    shutdown: "Zamknij 9Remote (zatrzymaj serwer, zamknij tunel, wyjdź)",
+    shutdown: "Zamknij 1Terminal (zatrzymaj serwer, zamknij tunel, wyjdź)",
     shutdownShort: "Zamknij",
     lightMode: "Przełącz na tryb jasny",
     darkMode: "Przełącz na tryb ciemny",

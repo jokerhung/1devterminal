@@ -50,7 +50,7 @@ export default {
     documentation: "Dokumentasi",
     reset: "Tetap semula terowong dan sambung semula klien",
     resetShort: "Tetap Semula",
-    shutdown: "Tutup 9Remote (hentikan pelayan, tutup terowong, keluar)",
+    shutdown: "Tutup 1Terminal (hentikan pelayan, tutup terowong, keluar)",
     shutdownShort: "Tutup",
     lightMode: "Tukar ke mod cerah",
     darkMode: "Tukar ke mod gelap",

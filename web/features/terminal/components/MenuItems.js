@@ -462,7 +462,7 @@ export default function MenuItems({
           </span>
         )}
         <p className="text-text-muted text-sm">
-          {t("menu.version")} {webVersion}{(hostVersion || agentVersion) ? ` / 9Remote ${hostVersion || agentVersion}` : ""}
+          {t("menu.version")} {webVersion}{(hostVersion || agentVersion) ? ` / 1Terminal ${hostVersion || agentVersion}` : ""}
         </p>
       </div>
 

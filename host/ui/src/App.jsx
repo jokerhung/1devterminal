@@ -79,7 +79,7 @@ export default function App() {
 
   useEffect(() => {
     // Tauri shell: reset the native window title leaving the workspace tab
-    try { window.__TAURI__?.window?.getCurrentWindow?.().setTitle("9Remote")?.catch?.(() => {}); } catch {}
+    try { window.__TAURI__?.window?.getCurrentWindow?.().setTitle("1Terminal")?.catch?.(() => {}); } catch {}
     // Tauri shell: no browser reload accelerator — wire Cmd/Ctrl+R and F5
     let reloadKey = null;
     if (window.__TAURI__) {

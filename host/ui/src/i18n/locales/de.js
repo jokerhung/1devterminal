@@ -50,7 +50,7 @@ export default {
     documentation: "Dokumentation",
     reset: "Tunnel zurücksetzen und Clients erneut verbinden",
     resetShort: "Zurücksetzen",
-    shutdown: "9Remote beenden (Server stoppen, Tunnel schließen, beenden)",
+    shutdown: "1Terminal beenden (Server stoppen, Tunnel schließen, beenden)",
     shutdownShort: "Beenden",
     lightMode: "Zum Hell-Modus wechseln",
     darkMode: "Zum Dunkel-Modus wechseln",

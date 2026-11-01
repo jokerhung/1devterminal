@@ -50,7 +50,7 @@ export default {
     documentation: "مستندات",
     reset: "بازنشانی تونل و بازاتصال کلاینت‌ها",
     resetShort: "بازنشانی",
-    shutdown: "خاموش کردن 9Remote (توقف سرور، بستن تونل، خروج)",
+    shutdown: "خاموش کردن 1Terminal (توقف سرور، بستن تونل، خروج)",
     shutdownShort: "خاموش",
     lightMode: "تغییر به حالت روشن",
     darkMode: "تغییر به حالت تاریک",

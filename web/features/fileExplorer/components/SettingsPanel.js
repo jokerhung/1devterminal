@@ -80,7 +80,7 @@ export default function SettingsPanel() {
       <div className={SECTION_CLS}>About</div>
 
       <div className="px-3 py-2 text-xs text-text-muted">
-        VSCode-like File Explorer for 9remote
+        VSCode-like File Explorer for 1Terminal
       </div>
     </div>
   );

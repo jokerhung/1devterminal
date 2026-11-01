@@ -20,15 +20,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "9Remote — Remote Everything, Everywhere",
+  title: "1Terminal — Remote Everything, Everywhere",
   description: "Remote IDE, desktop, files, emulator & vibe coding on PC, Web, iPad, and Mobile. Ultra-low latency WebRTC P2P dev suite.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "9Remote"
+    title: "1Terminal"
   },
-  applicationName: "9Remote Terminal",
+  applicationName: "1Terminal",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },

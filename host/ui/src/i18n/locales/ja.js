@@ -50,7 +50,7 @@ export default {
     documentation: "ドキュメンテーション",
     reset: "トンネルをリセットしてクライアントを再接続",
     resetShort: "リセット",
-    shutdown: "9Remoteをシャットダウン(サーバー停止、トンネル閉鎖、終了)",
+    shutdown: "1Terminalをシャットダウン(サーバー停止、トンネル閉鎖、終了)",
     shutdownShort: "シャットダウン",
     lightMode: "ライトモードに切り替え",
     darkMode: "ダークモードに切り替え",

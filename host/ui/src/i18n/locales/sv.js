@@ -50,7 +50,7 @@ export default {
     documentation: "Dokumentation",
     reset: "Återställ tunnel och anslut om klienter",
     resetShort: "Återställ",
-    shutdown: "Stäng av 9Remote (stoppa server, stäng tunnel, avsluta)",
+    shutdown: "Stäng av 1Terminal (stoppa server, stäng tunnel, avsluta)",
     shutdownShort: "Stäng av",
     lightMode: "Byt till ljust läge",
     darkMode: "Byt till mörkt läge",

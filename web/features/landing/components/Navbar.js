@@ -39,10 +39,10 @@ export default function Navbar() {
         <Link href="/" className="flex items-center gap-3 group">
           <img
             src="/icon-192.png"
-            alt="9Remote Logo"
+            alt="1Terminal Logo"
             className="w-8 h-8 rounded-lg object-contain shadow-md shadow-brand-500/20"
           />
-          <span className="text-xl font-bold tracking-tight" style={{ color: THEME.text }}>9Remote</span>
+          <span className="text-xl font-bold tracking-tight" style={{ color: THEME.text }}>1Terminal</span>
           {version && (
             <span className="px-2 py-0.5 text-xs font-mono font-medium rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
               v{version}

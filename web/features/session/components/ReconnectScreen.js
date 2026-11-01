@@ -39,7 +39,7 @@ export default function ReconnectScreen({ label, inline = false }) {
       <div className="relative z-10 flex flex-col items-center gap-3 px-6 text-center">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-text animate-pulse-glow" />
-          <span className="text-[15px] font-semibold text-text tracking-wide">9Remote</span>
+          <span className="text-[15px] font-semibold text-text tracking-wide">1Terminal</span>
         </div>
         <Spinner size="lg" />
         <p className="text-sm text-text-muted">{label || t("connection.retrying")}</p>

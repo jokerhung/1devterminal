@@ -130,7 +130,7 @@ export default function PwaInstallGuide() {
           {1 + stepOffset}
         </div>
         <div className="flex-1">
-          <p className="text-text font-medium mb-1.5">Download 9Remote on App Store</p>
+          <p className="text-text font-medium mb-1.5">Download 1Terminal on App Store</p>
           <a
             href={APP_STORE_URL}
             target="_blank"
@@ -166,7 +166,7 @@ export default function PwaInstallGuide() {
           {1 + stepOffset}
         </div>
         <div className="flex-1">
-          <p className="text-text font-medium mb-1.5">Download 9Remote on Google Play</p>
+          <p className="text-text font-medium mb-1.5">Download 1Terminal on Google Play</p>
           <a
             href={PLAY_STORE_URL}
             target="_blank"

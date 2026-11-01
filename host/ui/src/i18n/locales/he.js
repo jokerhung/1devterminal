@@ -50,7 +50,7 @@ export default {
     documentation: "תיעוד",
     reset: "איפוס התעלה והחבר מחדש ללקוחות",
     resetShort: "איפוס",
-    shutdown: "כיבוי 9Remote (עצור שרת, סגור תעלה, יציאה)",
+    shutdown: "כיבוי 1Terminal (עצור שרת, סגור תעלה, יציאה)",
     shutdownShort: "כיבוי",
     lightMode: "עבור למצב בהיר",
     darkMode: "עבור למצב אפל",

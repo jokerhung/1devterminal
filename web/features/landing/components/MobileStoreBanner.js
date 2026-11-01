@@ -46,11 +46,11 @@ export default function MobileStoreBanner() {
       <div className="flex items-center gap-3 min-w-0">
         <img
           src="/icon-192.png"
-          alt="9Remote"
+          alt="1Terminal"
           className="w-9 h-9 rounded-xl object-contain shadow-md shrink-0 border border-border-subtle/50"
         />
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-text truncate leading-tight">9Remote</p>
+          <p className="text-sm font-semibold text-text truncate leading-tight">1Terminal</p>
           <p className="text-[11px] text-text-muted truncate leading-tight mt-0.5">{target.storeName}</p>
         </div>
       </div>

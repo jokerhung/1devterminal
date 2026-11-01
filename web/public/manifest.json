@@ -1,6 +1,6 @@
 {
-  "name": "9Remote Terminal",
-  "short_name": "9Remote",
+  "name": "1Terminal",
+  "short_name": "1Terminal",
   "id": "/?source=pwa",
   "description": "Access your terminal from anywhere - secure remote terminal access",
   "start_url": "/login",
@@ -40,14 +40,14 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "9Remote on desktop"
+      "label": "1Terminal on desktop"
     },
     {
       "src": "/screenshot-mobile.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "9Remote on mobile"
+      "label": "1Terminal on mobile"
     }
   ]
 }

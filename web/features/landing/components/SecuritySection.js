@@ -15,7 +15,7 @@ const FLOW_DIAGRAM = `
 sequenceDiagram
     autonumber
     participant Client as Mobile / Web Client
-    participant Server as 9Remote Signaling Relay
+    participant Server as 1Terminal Signaling Relay
     participant Host as Host Machine (Agent)
 
     Host->>Server: 1. Register HEAD (TAIL stays private on Host)
@@ -109,7 +109,7 @@ export default function SecuritySection() {
       let icon = null;
       if (text.includes("Mobile / Web Client")) {
         icon = NODE_ICONS.Client;
-      } else if (text.includes("9Remote Signaling Relay")) {
+      } else if (text.includes("1Terminal Signaling Relay")) {
         icon = NODE_ICONS.Server;
       } else if (text.includes("Host Machine (Agent)")) {
         icon = NODE_ICONS.Host;

@@ -50,7 +50,7 @@ export default {
     documentation: "Dokumentasi",
     reset: "Setel ulang terowongan dan sambungkan kembali klien",
     resetShort: "Setel Ulang",
-    shutdown: "Matikan 9Remote (hentikan server, tutup terowongan, keluar)",
+    shutdown: "Matikan 1Terminal (hentikan server, tutup terowongan, keluar)",
     shutdownShort: "Matikan",
     lightMode: "Beralih ke mode terang",
     darkMode: "Beralih ke mode gelap",

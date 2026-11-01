@@ -31,7 +31,7 @@ self.addEventListener("push", (event) => {
 
       try {
         const data = event.data.json();
-        const title = data.title || "9Remote";
+        const title = data.title || "1Terminal";
         const options = {
           body: data.body || "Notification",
           icon: "/icon-192.png",

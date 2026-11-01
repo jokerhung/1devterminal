@@ -50,7 +50,7 @@ export default {
     documentation: "Documentatie",
     reset: "Tunnel opnieuw instellen en clients opnieuw verbinden",
     resetShort: "Opnieuw instellen",
-    shutdown: "9Remote afsluiten (server stoppen, tunnel sluiten, afsluiten)",
+    shutdown: "1Terminal afsluiten (server stoppen, tunnel sluiten, afsluiten)",
     shutdownShort: "Afsluiten",
     lightMode: "Overschakelen naar lichte modus",
     darkMode: "Overschakelen naar donkere modus",

@@ -50,7 +50,7 @@ export default {
     documentation: "Documentazione",
     reset: "Ripristina tunnel e riconnetti i client",
     resetShort: "Ripristina",
-    shutdown: "Spegni 9Remote (arresta server, chiudi tunnel, esci)",
+    shutdown: "Spegni 1Terminal (arresta server, chiudi tunnel, esci)",
     shutdownShort: "Spegni",
     lightMode: "Passa alla modalità chiara",
     darkMode: "Passa alla modalità scura",

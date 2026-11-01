@@ -76,7 +76,7 @@ const COMPARISON_FEATURES = [
 ];
 
 const PRODUCTS = [
-  { key: "nine", name: "9Remote", highlight: true },
+  { key: "nine", name: "1Terminal", highlight: true },
   { key: "claude", name: "Claude Remote" },
   { key: "teamviewer", name: "TeamViewer" },
   { key: "chrome", name: "Chrome Remote" },
@@ -110,7 +110,7 @@ export default function FeaturesSection() {
             Remote Everything · Everywhere
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4" style={{ color: THEME.text }}>
-            Why Choose <span style={{ color: THEME.text }}>9Remote?</span>
+            Why Choose <span style={{ color: THEME.text }}>1Terminal?</span>
           </h2>
           <p className="text-base sm:text-lg max-w-2xl mx-auto" style={{ color: THEME.textDim }}>
             All your dev superpowers on any screen — zero config, zero lag, zero trust.
@@ -163,7 +163,7 @@ export default function FeaturesSection() {
         <div className="pt-8">
           <div className="text-center mb-10">
             <h3 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: THEME.text }}>
-              How 9Remote Compares
+              How 1Terminal Compares
             </h3>
             <p className="text-sm sm:text-base max-w-xl mx-auto" style={{ color: THEME.textDim }}>
               Built from scratch for modern developers who need both power and mobility.
@@ -234,7 +234,7 @@ export default function FeaturesSection() {
                 <path d="M6.5 10.5l2.5 2.5 4.5-5.5" fill="none" stroke="var(--color-bg)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span className="font-semibold" style={{ color: THEME.text }}>
-                9Remote: Complete 19/19 capabilities · 100% self-hosted & private
+                1Terminal: Complete 19/19 capabilities · 100% self-hosted & private
               </span>
             </div>
           </div>

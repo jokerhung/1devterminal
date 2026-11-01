@@ -1,8 +1,6 @@
-# 9Remote — Remote Everything, Vibecode Everywhere
+# 9Remote — Remote Development Environment
 
-Your entire dev workstation in your pocket. A remote IDE, 60fps desktop stream, visual file explorer, live mobile emulator, zero-config localhost preview, and every AI harness in one UI — Claude Code, Codex, Gemini CLI & 30+ agents — on PC, Web, iPad, or phone.
-
-> **Codex CLI looks like 1995? Claude Code's TUI hurts? Forget them.** Same agents, one UI you'll actually love.
+Self-hosted remote development workspace: multi-pane terminal IDE, 60fps desktop stream, file explorer with Git integration, Android device mirroring, Chrome browser automation, and 33+ AI coding agents with native structured chat. Access via LAN or Cloudflare Tunnel.
 
 <div align="center">
   <img src="./web/public/screenshots/desktop-ide.webp" alt="9Remote desktop workspace: terminal, editor and AI agent panes side by side" width="880"/>
@@ -20,123 +18,188 @@ Your entire dev workstation in your pocket. A remote IDE, 60fps desktop stream, 
 
 ## ⚡ Quick Start
 
-### 1. Run with npm (Recommended)
-
+**Linux / macOS:**
 ```bash
-npm i -g 9remote
-9remote
+curl -fsSL https://raw.githubusercontent.com/jokerhung/1devterminal/master/install.sh | bash
 ```
 
-### 2. Or Download Desktop App
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/jokerhung/1devterminal/master/install.ps1 | iex
+```
 
-- **macOS (Universal DMG):** [9Remote-macos-universal.dmg](https://github.com/decolua/9remote/releases/latest/download/9Remote-macos-universal.dmg) *(Intel + Apple Silicon, signed & notarized)*
-- **Windows (Setup EXE):** [9Remote-windows-x64-setup.exe](https://github.com/decolua/9remote/releases/latest/download/9Remote-windows-x64-setup.exe) *(Installer, x64)*
-- **Windows (Portable EXE):** [9Remote-windows-x64-portable.exe](https://github.com/decolua/9remote/releases/latest/download/9Remote-windows-x64-portable.exe) *(Portable, no install)*
-- **Linux:** [deb x64](https://github.com/decolua/9remote/releases/latest/download/9Remote-linux-amd64.deb) · [deb arm64](https://github.com/decolua/9remote/releases/latest/download/9Remote-linux-arm64.deb) · [AppImage arm64](https://github.com/decolua/9remote/releases/latest/download/9Remote-linux-arm64.AppImage)
+The installer will:
+1. Check and install Node.js and Git if needed
+2. Clone the repository to `~/1terminal` (or `%USERPROFILE%\1terminal` on Windows)
+3. Install dependencies and build the host package
+4. Optionally create a system service for auto-start
+5. Open `http://localhost:2208/workspace` in your browser
 
-### 3. Or Get Mobile App
+Access the web interface:
+- **Local:** `http://localhost:2208/workspace`
+- **LAN:** `http://<your-ip>:2208/workspace`
 
-- **iOS / iPadOS:** [Download on the App Store](https://apps.apple.com/us/app/9remote/id6796664210)
-- **Android:** [Get it on Google Play](https://play.google.com/store/apps/details?id=cc.remote9.app&pli=1)
+### Remote Access (Optional)
 
-Scan the QR code from a phone (or open the URL) and you're on your machine's shell — over WebRTC or WebSocket, through an encrypted tunnel that closes when you stop the host.
+Use Cloudflare Tunnel for secure remote access:
+
+```bash
+# Install cloudflared
+# macOS: brew install cloudflare/cloudflare/cloudflared
+# Linux: wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb && sudo dpkg -i cloudflared-linux-amd64.deb
+# Windows: winget install --id Cloudflare.cloudflared
+
+# Create tunnel
+cloudflared tunnel --url http://localhost:2208
+```
+
+Cloudflared will generate a public URL (e.g., `https://xxx.trycloudflare.com`) that securely proxies to your local instance.
+
+### CLI Commands
+
+| Command | Description |
+|---|---|
+| `9remote ui` | Start web interface at `localhost:2208` |
+| `9remote start` | Headless server mode (systemd, Docker, SSH) |
+| `9remote browser chain --goal "…" --steps '[…]'` | AI browser automation |
 
 ---
 
 ## 📱 Supported Platforms
 
-| Platform | Host (Your Machine) | Client (Anywhere) | Download / Access |
+| Platform | Host | Client | Install |
 |---|:---:|:---:|---|
-| **macOS** | ✅ | ✅ | [Download .dmg](https://github.com/decolua/9remote/releases/latest/download/9Remote-macos-universal.dmg) or `npm i -g 9remote` |
-| **Windows** | ✅ | ✅ | [Download .exe](https://github.com/decolua/9remote/releases/latest/download/9Remote-windows-x64-setup.exe) or `npm i -g 9remote` |
-| **Linux** | ✅ | ✅ | [Download .deb / .AppImage](https://github.com/decolua/9remote/releases/latest/download/9Remote-linux-amd64.deb) or `npm i -g 9remote` |
-| **Web Browser** | — | ✅ | [`https://9remote.cc/login`](https://9remote.cc/login) *(Zero install, any browser)* |
-| **iOS / iPadOS** | — | ✅ | [App Store](https://apps.apple.com/us/app/9remote/id6796664210) / Web PWA *(Supports iPad keyboard & trackpad)* |
-| **Android** | — | ✅ | [Google Play](https://play.google.com/store/apps/details?id=cc.remote9.app&pli=1) / Web PWA *(Fullscreen dev mode)* |
+| **macOS** | ✅ | ✅ | `curl -fsSL https://raw.githubusercontent.com/jokerhung/1devterminal/master/install.sh \| bash` |
+| **Windows** | ✅ | ✅ | `irm https://raw.githubusercontent.com/jokerhung/1devterminal/master/install.ps1 \| iex` |
+| **Linux** | ✅ | ✅ | `curl -fsSL https://raw.githubusercontent.com/jokerhung/1devterminal/master/install.sh \| bash` |
+| **Web Browser** | — | ✅ | Access via `http://localhost:2208/workspace` or LAN IP |
+
+Android device mirroring requires Android SDK Platform Tools (`adb`) and installed AVD for emulator control.
 
 ---
 
 ## ✨ 8 Superpowers
 
-1. **Every Harness, One UI:** Run Claude Code, Codex, Gemini CLI, Cursor CLI, Aider & 30+ AI agents in a single UI, with live artifact inspector (HTML, Markdown, Mermaid).
-2. **Every Screen, Everywhere:** Seamless across PC, Web, iPad keyboard shortcuts, and mobile touch dev keys (`Esc`, `Tab`, `Ctrl`, `Alt`, arrows).
-3. **60fps Remote Desktop:** Ultra-smooth screen streaming with hardware acceleration and <20ms latency over direct WebRTC.
-4. **Full Remote IDE:** Multi-pane terminals, integrated code editor with syntax highlighting, visual Git status & diff viewer.
-5. **Live Mobile Emulator:** Interactive remote stream for Android Emulator and iOS Simulator straight on your phone.
-6. **Zero-Config Localhost Preview:** Built-in Service Worker bridge streams `localhost:3000` to your mobile browser without port forwarding or ngrok.
-7. **Visual File Explorer (Path-Jailed):** Fuzzy search files (⌘⇧P), touch drag-and-drop transfers, and file management safely jailed to your workspace.
-8. **Persistent PTY Daemon:** Background daemon keeps your shells and long-running builds alive even when switching networks or closing tabs.
+### 🤖 1. Every Harness, One UI
+
+- **33 CLI harnesses** in the new-terminal catalog: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Aider, Grok, Amp, Droid, Goose, Kilocode, Charm Crush, Qwen Code, Kimi, OpenClaude, Cline, Rovo Dev, Hermes, Devin, Auggie, Continue, Antigravity, Mistral Vibe, MiMo Code, Trae, Ante, Kiro, Codebuff, Prime Agent, Command Code, Autohand Code, Pi, OMP, and OpenClaw.
+- **8 native structured-chat adapters** (Claude Code, Codex, OpenCode, Antigravity, OMP, Pi, Devin, Hermes) with live transcripts, thinking blocks, tool calls, file diffs, task lists, permission gates, question/elicitation cards, prompt queueing, and turn rewind where the engine supports it. 5 engines (Claude, Codex, OpenCode, Antigravity, Hermes) get the **9r-browser** skill auto-installed.
+- Resume past conversations, switch model/effort/permission mode, browse each engine's skills and MCP servers, and use voice dictation (Web Speech or AI STT) to write prompts.
+- Live usage and rate-limit tracking for Claude, Codex, Kimi, and Grok plans.
+- Artifact inspector renders HTML, Markdown, Mermaid, SVG, and generated files beside the chat.
+- When enabled in settings, the host registers its MCP server into agent CLIs, exposing artifact opening, task reporting, and fleet/kanban coordination tools.
+- Push notifications when an agent finishes a turn or waits for your input.
+
+### 🖥️ 2. Full Remote IDE
+
+- **Persistent PTY daemon:** shells, builds, and AI agents stay alive across network switches, locked phones, tab closes, and host restarts.
+- Multi-pane terminals with drag-to-resize splitters, session tabs, Git worktree creation/cleanup, branch badges, and mobile dev keys (`Esc`, `Tab`, `Ctrl`, `Alt`, arrows, `F1`–`F12`, sticky modifiers).
+- CodeMirror editor with syntax highlighting for JS/TS, Python, Go, Rust, Java, PHP, SQL, HTML/CSS, YAML, and more.
+- Preview images, video, PDF, Office documents, Markdown, and Mermaid without leaving the workspace.
+- Command palette, fuzzy file search (⌘⇧P), file tree, workspace switcher, and customizable themes/backgrounds.
+
+### 📁 3. File Explorer & Git (Path-Jailed)
+
+- Browse, create, rename, delete, upload, and download files with chunked transfers.
+- Git status, branch ahead/behind, side-by-side diffs, image diffs, commit/push/pull actions, and multi-worktree management.
+- Repository scan across workspaces, changed-file badges, and `.gitignore` helpers.
+- Every file operation goes through a strict path jail plus a sensitive-path deny list.
+
+### 🌐 4. Remote Chrome Browser
+
+- Stream a real Chrome/Chromium/Edge session from the host over the same low-latency transport, with dirty-tile diffing and adaptive quality.
+- Browser profiles, tabs, address bar with history, console drawer, element inspect, annotations and markup overlays.
+- Mobile device emulation, cookie import, and anti-detection defaults for testing real sites.
+- Headless or headed Chrome, adoption of a live Chrome debugging port, and automatic idle reclaim for headless instances.
+
+### 🤖 5. AI Browser Automation
+
+- `9remote browser` exposes a 14-op `chain` DSL (`go`, `wait`, `click`, `type`, `select`, `hover`, `enter`, `scroll`, `read`, `search`, `find`, `shot`, `run`, `upload`) with verified steps and self-healing.
+- Agents discover it through the bundled **`9r-browser`** skill; a small decision model (Jev, free or OpenRouter preset) handles unknown labels and login flows.
+- Run in an isolated profile or drive your real Chrome through the MV3 bridge extension — no debug banner required.
+
+### 📱 6. Localhost Preview & Android Mirroring
+
+- **Zero-config localhost preview:** a Service Worker bridge streams `localhost:3000`, `localhost:5173`, `localhost:8080`, or any local port to your phone — no port forwarding, no ngrok.
+- Automatic port scanner finds local web servers behind Node, Vite, Next, Python, Rails, PHP, and more.
+- **Android device/emulator mirroring** via scrcpy at up to 60fps: boot/stop AVDs, install/launch/clear/uninstall APKs, open deep links, and stream logcat.
+- GitHub Codespaces list/create/start/connect, with devcontainer auto-start support.
+
+### 🖥️ 7. 60fps Remote Desktop
+
+- Hardware-accelerated screen streaming over direct WebRTC P2P with dirty-tile diffing and adaptive scale/quality.
+- Mouse, touch, keyboard, multi-monitor switching, and OS cursor-shape sync.
+- Two-way text clipboard sync between host and client.
+- Falls back to WebSocket through the tunnel when P2P is unavailable.
+
+### 📲 8. Responsive Web Interface
+
+- Adaptive multi-column layout for desktop/tablet and touch-optimized interface for mobile browsers.
+- Multi-host fleet view (up to 8 hosts) with live session/workspace status and in-place host switching.
+- Persistent sessions and reconnect screens that keep long-running work alive across network changes.
 
 ---
 
-## 🛡️ Zero-Trust Security Architecture
+## 🛡️ Security Architecture
 
-9Remote uses 3 layers of zero-trust defense:
-- **Split-Key Pairing:** The key is split into HEAD and TAIL. The relay server only brokers the handshake with HEAD and never knows your secret TAIL.
-- **Direct WebRTC P2P:** Data flows directly device-to-device with X25519 + AES-256-GCM encryption.
-- **Physical Host Approval:** New devices cannot connect until you physically click "Approve" on your computer screen.
+9Remote implements secure local and remote access:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as Mobile / Web Client
-    participant Server as 9Remote Signaling Relay
-    participant Host as Host Machine
-
-    Host->>Server: 1. Register HEAD (TAIL stays private on Host)
-    Client->>Server: 2. Request Host lookup with HEAD
-    Server-->>Client: 3. Return Host Public Key (Relay steps aside)
-    Note over Client,Host: Direct P2P Connection (WebRTC DataChannel)
-    Client->>Host: 4. Send encrypted TAIL (X25519 + AES-GCM)
-    Note over Host: Host verifies TAIL secret
-    Host-->>Host: 5. Physical Security Prompt: "Approve Device?"
-    Note over Host: You click Approve on host screen
-    Host-->>Client: 6. Secure P2P Session Established (<20ms latency)
-```
+- **Direct WebSocket/WebRTC transport:** terminals and file transfers use WebSocket; remote desktop uses WebRTC data channels for low latency.
+- **Path jail:** file explorer enforces strict path boundaries and blocks sensitive system paths.
+- **Workspace-scoped access:** optional workspace-level permissions with path restrictions.
+- **Cloudflare Tunnel encryption:** when using cloudflared for remote access, traffic is encrypted end-to-end through Cloudflare's network.
 
 ---
 
-## 📂 What's in here (Monorepo)
+## 📂 Project Structure (Monorepo)
 
-- **`host/`** — the Node.js CLI that runs on the machine you want to reach. Serves PTY terminals (daemonized), streams the screen over WebRTC with dirty-tile diffing, and exposes a jailed file explorer. Published to npm as `9remote`.
-- **`web/`** — the Next.js client UI + signaling/session API, deployed to Cloudflare Workers (OpenNext) backed by D1. Terminal data does not flow through it — clients connect to the host directly.
-- **`desktop/`** — Tauri wrapper around the host for native macOS, Windows and Linux desktop apps.
-- **`gitbook/`** — the docs site.
+- **`host/`** — Node.js server that runs on your machine. Serves PTY terminals, streams desktop/browser, handles file operations, and integrates AI coding agents. Published to npm as `9remote`.
+- **`web/`** — Next.js web client interface deployed to Cloudflare Workers. Provides the UI for accessing the host.
+- **`desktop/`** — Tauri desktop wrapper (optional).
+- **`gitbook/`** — documentation site.
+- **`scripts/`** — build and packaging tools.
 
-The transport protocol (`host/transport/` and `web/shared/transport/`) is implemented twice, mirrored on both sides — change one, change the other.
+The transport protocol (`host/transport/` and `web/shared/transport/`) is implemented on both sides.
 
----
+### Development Setup
 
-## 🌐 Self-hosting the web app
-
-The web app runs on Cloudflare Workers and needs a Cloudflare account (the free tier works). Plain-VPS hosting is not supported — the code uses Workers bindings (D1, KV, Durable Objects, R2).
+Clone and run from source:
 
 ```bash
-# 1. Copy the example config and create the resources it references
-cp web/wrangler.toml.example web/wrangler.toml
-npx wrangler d1 create 9remote
-npx wrangler kv namespace create OTA_KV
-# fill the printed ids into web/wrangler.toml
+# 1. Clone repository
+git clone https://github.com/jokerhung/1devterminal.git
+cd 1terminal
 
-# 2. Secrets: copy web/.dev.vars.example → web/.dev.vars, fill in your values,
-#    then push them to the Worker
-npm run secrets:sync
+# 2. Install dependencies
+npm install
 
-# 3. Deploy
-npm run web:deploy
+# 3. Build and start
+npm run host:build        # Build the host package
+npm run dev:local         # Start host server + web client together
+
+# Access at http://localhost:2208
 ```
 
-The host itself runs anywhere Node runs — no Cloudflare dependency.
+**Development commands:**
+
+```bash
+npm run dev:local         # Host + web together (recommended)
+npm run host:dev:server   # Host server only (port 2208)
+npm run web:dev           # Web client only (Next dev on port 2200)
+
+npm run host:build        # Build npm package
+npm run host:sync         # Build + sync to local agent
+```
+
+**Stack:** JavaScript ES modules, React 19, Next.js, Socket.IO, WebRTC. Lint with `npx eslint .`.
 
 ---
 
-## ✍️ Code signing policy
+---
 
-- Release binaries are built by the maintainers from the tagged commit of this repository — a release tag always points at the exact source its binaries were built from.
-- **macOS** apps are signed with an Apple Developer ID and notarized.
-- **Windows** installers are Authenticode-signed with a certificate from [SignPath Foundation](https://signpath.org) (free code signing for open source).
-- The `9remote` npm package is published from this repository by the maintainers.
-- A binary whose signature does not match the publishers above, or that cannot be traced to a tag here, did not come from this project — do not run it.
+## 🔒 Distribution
+
+The `9remote` npm package is published from this repository. Install only from npm or build from source.
 
 ---
 

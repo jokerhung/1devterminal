@@ -50,7 +50,7 @@ export default {
     documentation: "Documentation",
     reset: "Réinitialiser le tunnel et reconnecter les clients",
     resetShort: "Réinitialiser",
-    shutdown: "Arrêter 9Remote (arrêter le serveur, fermer le tunnel, quitter)",
+    shutdown: "Arrêter 1Terminal (arrêter le serveur, fermer le tunnel, quitter)",
     shutdownShort: "Arrêter",
     lightMode: "Passer au mode clair",
     darkMode: "Passer au mode sombre",

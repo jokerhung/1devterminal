@@ -50,7 +50,7 @@ export default {
     documentation: "เอกสาร",
     reset: "รีเซ็ตอุโมงค์และเชื่อมต่อไคลเอนต์ใหม่",
     resetShort: "รีเซ็ต",
-    shutdown: "ปิด 9Remote (หยุดเซิร์ฟเวอร์ ปิดอุโมงค์ ออก)",
+    shutdown: "ปิด 1Terminal (หยุดเซิร์ฟเวอร์ ปิดอุโมงค์ ออก)",
     shutdownShort: "ปิด",
     lightMode: "สลับไปยังโหมดสว่าง",
     darkMode: "สลับไปยังโหมดมืด",

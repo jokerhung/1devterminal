@@ -50,7 +50,7 @@ export default {
     documentation: "Belgeler",
     reset: "Tüneli Sıfırla ve İstemcileri Yeniden Bağla",
     resetShort: "Sıfırla",
-    shutdown: "9Remote'u Kapat (sunucuyu durdur, tüneli kapat, çık)",
+    shutdown: "1Terminal'u Kapat (sunucuyu durdur, tüneli kapat, çık)",
     shutdownShort: "Kapat",
     lightMode: "Açık Moda Geç",
     darkMode: "Koyu Moda Geç",
