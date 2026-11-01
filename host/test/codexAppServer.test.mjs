@@ -453,6 +453,7 @@ await test("resuming reuses the thread instead of starting a new one", async () 
   const rr = proc.last();
   assert.equal(rr.method, "thread/resume");
   assert.equal(rr.params.threadId, "t-old");
+  assert.equal(rr.params.excludeTurns, true, "resume must not hydrate the full transcript over the daemon pipe");
   proc.emit({ jsonrpc: "2.0", id: rr.id, result: { thread: { id: "t-old" } } });
   await ready;
   assert.equal(server.threadId, "t-old");

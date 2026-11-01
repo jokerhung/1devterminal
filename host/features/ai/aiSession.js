@@ -1336,6 +1336,12 @@ export class AiSession {
     try { await this._ensureAlive; } finally { this._ensureAlive = null; }
   }
 
+  // Ask the engine for authoritative state before applying the prompt busy guard.
+  async reconcileTurn() {
+    if (this.destroyed || !this.adapter?.reconcileTurn) return false;
+    return this.adapter.reconcileTurn();
+  }
+
   // Reboot the adapter without touching the terminal PTY; handlers detach so the dying process cannot race the new one.
   async restart() {
     this.clearAllAsyncWatchdogs();

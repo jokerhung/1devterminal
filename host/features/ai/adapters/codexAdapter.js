@@ -33,6 +33,7 @@ export class CodexAdapter {
     this.transport = asked === "exec" ? "exec" : "app-server";
     this.appServer = null;
     this._restarting = false;
+    this._reconcilingTurn = null;
     // Prompts that arrived while the server was being replaced; drained once it is up.
     this._heldPrompts = [];
     // One prompt held while OUR interrupt is landing — sister of `_heldPrompts`, same one-deep patience.
@@ -442,6 +443,28 @@ export class CodexAdapter {
         this.onEvent?.("error", { message: err.message });
       }
     );
+  }
+
+  // Reconcile a stale app-server busy flag before accepting a prompt.
+  async reconcileTurn() {
+    if (!this.persistent || !this.appServer || (!this.isTurnRunning && !this.appServer.isTurnRunning)) return false;
+    if (this._reconcilingTurn) return this._reconcilingTurn;
+    const server = this.appServer;
+    this._reconcilingTurn = (async () => {
+      const status = await server.readThreadStatus?.();
+      if (!status || status === "active" || this.appServer !== server) return false;
+
+      this.isTurnRunning = false;
+      server.isTurnRunning = false;
+      server.turnId = null;
+      server.gates?.clear?.();
+      server._interrupted = false;
+      this.onEvent?.("turn_complete", { stats: {}, subtype: "reconciled" });
+      logger.info(`[codex-adapter] reconciled stale turn flag (status=${status})`);
+      return true;
+    })();
+    try { return await this._reconcilingTurn; }
+    finally { this._reconcilingTurn = null; }
   }
 
   handleEvent(event) {

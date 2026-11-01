@@ -8,6 +8,7 @@ const logger = createLogger("codex-app-server");
 const ACTION_NAMES = { read: "read", listFiles: "list_files", search: "search" };
 
 const REQUEST_TIMEOUT_MS = 15000;
+const STATUS_TIMEOUT_MS = 2000;
 
 const ALREADY_ROUTED_OR_STREAMING = new Set([
   "item/agentMessage/delta",
@@ -426,6 +427,8 @@ export class CodexAppServer {
       sandboxPolicy: this.settings.sandboxPolicy,
       approvalPolicy: this.settings.approvalPolicy,
       collaborationMode: this.settings.collaborationMode || collaborationModeFor({ planMode: this.planMode, model: this.model, effort: this.effort, planEffort: this.planEffort }),
+      // Resume metadata only; full history can exceed the daemon's line limit.
+      ...(this.threadId ? { excludeTurns: true } : {}),
       ...(this.model ? { model: this.model } : {}),
       ...(this.personality ? { personality: this.personality } : {})
     };
@@ -460,6 +463,21 @@ export class CodexAppServer {
     }
     await this.rpc.request("thread/settings/update", { threadId: this.threadId, ...patch }, { timeoutMs: REQUEST_TIMEOUT_MS });
     return true;
+  }
+
+  // A reconnect can lose `turn/completed`; thread/read is authoritative for turn activity.
+  async readThreadStatus() {
+    if (this.closed || !this.threadId) return null;
+    try {
+      const res = await this.rpc.request("thread/read", {
+        threadId: this.threadId,
+        includeTurns: false
+      }, { timeoutMs: STATUS_TIMEOUT_MS });
+      return res?.thread?.status?.type || null;
+    } catch {
+      // Keep the busy guard conservative when an older app-server has no read API.
+      return null;
+    }
   }
 
   applyOptions(opts = {}) {

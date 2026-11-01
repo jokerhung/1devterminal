@@ -131,22 +131,40 @@ INSTALL_DIR="$HOME/1terminal"
 # Check if directory exists
 if [ -d "$INSTALL_DIR" ]; then
     print_warning "Directory $INSTALL_DIR already exists."
-    read -p "Do you want to remove it and reinstall? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Removing existing installation..."
-        rm -rf "$INSTALL_DIR"
-    else
-        print_error "Installation cancelled"
-        exit 1
-    fi
-fi
+    echo ""
+    echo "1. Remove old directory and reinstall (fresh start)"
+    echo "2. Update to latest version (keeps local files)"
+    echo "3. Cancel"
+    echo ""
+    read -p "Choose option (1/2/3): " choice
 
-# Clone repository
-print_info "Cloning 9Remote repository..."
-git clone https://github.com/jokerhung/1devterminal.git "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-print_success "Repository cloned successfully"
+    case $choice in
+        1)
+            print_info "Removing existing installation..."
+            rm -rf "$INSTALL_DIR"
+            print_info "Cloning 9Remote repository..."
+            git clone https://github.com/jokerhung/1devterminal.git "$INSTALL_DIR"
+            cd "$INSTALL_DIR"
+            print_success "Repository cloned successfully"
+            ;;
+        2)
+            print_info "Updating to latest version..."
+            cd "$INSTALL_DIR"
+            git fetch origin master
+            git reset --hard origin/master
+            print_success "Updated to latest version"
+            ;;
+        *)
+            print_error "Installation cancelled"
+            exit 1
+            ;;
+    esac
+else
+    print_info "Cloning 9Remote repository..."
+    git clone https://github.com/jokerhung/1devterminal.git "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+    print_success "Repository cloned successfully"
+fi
 
 # Install dependencies
 print_info "Installing dependencies... (this may take a few minutes)"
@@ -208,7 +226,34 @@ echo "╚═══════════════════════�
 echo ""
 print_success "9Remote is now installed at: $INSTALL_DIR"
 echo ""
-print_info "To start the server, run:"
+
+print_info "Starting 9Remote server to initialize permanent key..."
+cd "$INSTALL_DIR"
+npm run host:dev:server > /dev/null 2>&1 &
+SERVER_PID=$!
+sleep 10
+
+if ! kill -0 $SERVER_PID 2>/dev/null; then
+    print_error "Server failed to start"
+    exit 1
+fi
+
+print_success "Server started successfully"
+print_info "Generating permanent API key..."
+
+if node host/cli/index.js key 2>/dev/null | grep -q "sk-"; then
+    print_success "Permanent key generated"
+else
+    print_warning "Could not verify key generation"
+fi
+
+kill $SERVER_PID 2>/dev/null
+wait $SERVER_PID 2>/dev/null
+sleep 2
+print_success "Server stopped"
+
+echo ""
+print_info "To start the server manually, run:"
 echo -e "  ${COLOR_GREEN}cd $INSTALL_DIR${COLOR_RESET}"
 echo -e "  ${COLOR_GREEN}npm run dev:local${COLOR_RESET}"
 echo ""
@@ -226,11 +271,19 @@ echo ""
 read -p "Would you like to start 9Remote now? (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Starting 9Remote..."
+    print_info "Starting 9Remote in new terminal..."
     if [[ "$OSTYPE" == "linux-gnu"* ]] && check_command systemctl && systemctl --user is-enabled 9remote.service &>/dev/null; then
         systemctl --user start 9remote.service
         print_success "9Remote service started"
         print_info "Check status: systemctl --user status 9remote"
+        sleep 8
+        if check_command xdg-open; then
+            xdg-open "http://localhost:2208/workspace" 2>/dev/null
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        osascript -e "tell application \"Terminal\" to do script \"cd '$INSTALL_DIR' && npm run dev:local\"" 2>/dev/null
+        sleep 8
+        open "http://localhost:2208/workspace" 2>/dev/null
     else
         print_info "Starting in current terminal..."
         npm run dev:local

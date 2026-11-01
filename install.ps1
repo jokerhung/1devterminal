@@ -103,12 +103,48 @@ $installDir = Join-Path $env:USERPROFILE "1terminal"
 
 if (Test-Path $installDir) {
     Write-Warning "Directory $installDir already exists."
-    $response = Read-Host "Do you want to remove it and reinstall? (y/N)"
-    if ($response -eq 'y' -or $response -eq 'Y') {
+    Write-Output ""
+    Write-Output "1. Remove old directory and reinstall (fresh start)"
+    Write-Output "2. Update to latest version (keeps local files)"
+    Write-Output "3. Cancel"
+    Write-Output ""
+    $response = Read-Host "Choose option (1/2/3)"
+
+    if ($response -eq '1') {
         Write-Info "Removing existing installation..."
         Remove-Item -Path $installDir -Recurse -Force
+        Write-Info "Cloning 9Remote repository..."
+        try {
+            git clone https://github.com/jokerhung/1devterminal.git $installDir
+            Set-Location $installDir
+            Write-Success "Repository cloned successfully"
+        } catch {
+            Write-CustomError "Failed to clone repository: $_"
+            exit 1
+        }
+    } elseif ($response -eq '2') {
+        Write-Info "Updating to latest version..."
+        try {
+            Set-Location $installDir
+            git fetch origin master
+            git reset --hard origin/master
+            Write-Success "Updated to latest version"
+        } catch {
+            Write-CustomError "Failed to update repository: $_"
+            exit 1
+        }
     } else {
         Write-CustomError "Installation cancelled"
+        exit 1
+    }
+} else {
+    Write-Info "Cloning 9Remote repository..."
+    try {
+        git clone https://github.com/jokerhung/1devterminal.git $installDir
+        Set-Location $installDir
+        Write-Success "Repository cloned successfully"
+    } catch {
+        Write-CustomError "Failed to clone repository: $_"
         exit 1
     }
 }
@@ -181,7 +217,37 @@ Write-Output "╚═════════════════════
 Write-Output ""
 Write-Success "9Remote is now installed at: $installDir"
 Write-Output ""
-Write-Info "To start the server, run:"
+
+Write-Info "Starting 9Remote server to initialize permanent key..."
+Set-Location $installDir
+try {
+    $serverProcess = Start-Process PowerShell -ArgumentList "-NoProfile", "-Command", "cd '$installDir'; npm run host:dev:server" -PassThru -WindowStyle Hidden
+    Start-Sleep -Seconds 10
+
+    if ($serverProcess.HasExited) {
+        Write-CustomError "Server failed to start"
+        exit 1
+    }
+
+    Write-Success "Server started successfully"
+    Write-Info "Generating permanent API key..."
+
+    $keyResponse = & npm run --silent -- node cli/index.js key 2>$null
+    if ($keyResponse -match "Key\s+sk-") {
+        Write-Success "Permanent key generated"
+    } else {
+        Write-Warning "Could not verify key generation"
+    }
+
+    Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Write-Success "Server stopped"
+} catch {
+    Write-Warning "Error during initialization: $_"
+}
+
+Write-Output ""
+Write-Info "To start the server manually, run:"
 Write-ColorOutput Green "  cd $installDir"
 Write-ColorOutput Green "  npm run dev:local"
 Write-Output ""
@@ -197,24 +263,26 @@ Write-Output ""
 
 $startNow = Read-Host "Would you like to start 9Remote now? (y/N)"
 if ($startNow -eq 'y' -or $startNow -eq 'Y') {
-    Write-Info "Starting 9Remote..."
+    Write-Info "Starting 9Remote in new window..."
 
     if ($serviceResponse -eq 'y' -or $serviceResponse -eq 'Y') {
         try {
             Start-ScheduledTask -TaskName "9Remote"
             Write-Success "9Remote service started"
-            Write-Info "Opening browser in 5 seconds..."
-            Start-Sleep -Seconds 5
+            Write-Info "Opening browser in 8 seconds..."
+            Start-Sleep -Seconds 8
             Start-Process "http://localhost:2208/workspace"
         } catch {
             Write-Warning "Failed to start service. Starting manually..."
             Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$installDir'; npm run dev:local"
+            Write-Info "Opening browser in 8 seconds..."
+            Start-Sleep -Seconds 8
+            Start-Process "http://localhost:2208/workspace"
         }
     } else {
-        Write-Info "Starting in new PowerShell window..."
         Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$installDir'; npm run dev:local"
-        Write-Info "Opening browser in 5 seconds..."
-        Start-Sleep -Seconds 5
+        Write-Info "Opening browser in 8 seconds..."
+        Start-Sleep -Seconds 8
         Start-Process "http://localhost:2208/workspace"
     }
 }

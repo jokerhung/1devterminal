@@ -168,6 +168,8 @@ function mirrorAiStatus(manager, sessionId, event, data, engine) {
 
 // Ack order: rebuild from the CLI transcript first, then metadata into the surviving log — reversed, F5 loses restored turns or the catalog.
 async function doorSession(session, engine = session.engine) {
+  // Normalize an idle Codex thread before serializing reconnect state.
+  await session.reconcileTurn?.();
   session.refreshFromStore();
   return { ...await emitConnectMetadata(session, engine), session: publicSession(session) };
 }
@@ -403,6 +405,8 @@ export function setupAiHandlers(socket, io, manager = globalAiManager) {
       // first, and wait out any boot-time spawn still in flight on a healthy one.
       await session.ensureProcAlive?.();
       if (session.ready) await session.ready;
+      // Let the app-server clear an idle stale flag before rejecting this prompt.
+      await session.reconcileTurn?.();
       logger.info(`[ai] prompt: ${sessionId} (engine: ${session.engine}): ${message?.slice(0, 60)}`);
       // The pane has already dropped its log; a refused /clear would strand an empty chat — stop the turn instead.
       if (String(message).trim() === "/clear" && session.isTurnRunning) session.stop();

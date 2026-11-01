@@ -157,6 +157,24 @@ await test("turn_completed reaches the session, so the pane stops spinning", asy
   assert.equal(adapter.isTurnRunning, false);
 });
 
+await test("an idle thread clears a stale busy flag after reconnect", async () => {
+  const events = [];
+  const { proc, adapter } = await startedAdapter({ onEvent: (e, d) => events.push([e, d]) });
+  adapter.sendPrompt("hi");
+  const start = proc.sent("turn/start")[0];
+  proc.emit({ jsonrpc: "2.0", id: start.id, result: { turn: { id: "turn-1" } } });
+  assert.equal(adapter.isTurnRunning, true);
+
+  const check = adapter.reconcileTurn();
+  const read = proc.sent("thread/read")[0];
+  assert.equal(read.params.includeTurns, false);
+  proc.emit({ jsonrpc: "2.0", id: read.id, result: { thread: { status: { type: "idle" } } } });
+
+  assert.equal(await check, true);
+  assert.equal(adapter.isTurnRunning, false);
+  assert.equal(events.filter(([e]) => e === "turn_complete").length, 1);
+});
+
 await test("a permission request is surfaced and answered through the adapter", async () => {
   const events = [];
   const { proc, adapter } = await startedAdapter({ onEvent: (e, d) => events.push([e, d]) });

@@ -1,8 +1,11 @@
+import os from "node:os";
+import path from "node:path";
+
 // Daemon protocol/code version — bump when daemon behavior changes.
 export const DAEMON_VERSION = "74";
 
 // Staging directory for pasted/attached files before handing to CLI.
-export const UPLOAD_DIR = "/tmp/9remote-uploads";
+export const UPLOAD_DIR = path.resolve(os.tmpdir(), "9remote-uploads");
 
 // PowerShell prompt function emitting OSC 7 for cwd tracking.
 export function psOsc7PromptCommand() {
