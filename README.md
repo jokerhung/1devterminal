@@ -1,9 +1,9 @@
-# 9Remote — Remote Development Environment
+# 1Terminal - One Place for All Remote Coding
 
 Self-hosted remote development workspace: multi-pane terminal IDE, 60fps desktop stream, file explorer with Git integration, Android device mirroring, Chrome browser automation, and 33+ AI coding agents with native structured chat. Access via LAN or Cloudflare Tunnel.
 
 <div align="center">
-  <img src="./web/public/screenshots/desktop-ide.webp" alt="9Remote desktop workspace: terminal, editor and AI agent panes side by side" width="880"/>
+  <img src="./web/public/screenshots/desktop-ide.webp" alt="1Terminal desktop workspace: terminal, editor and AI agent panes side by side" width="880"/>
 
   <table align="center">
     <tr>
@@ -59,9 +59,9 @@ Cloudflared will generate a public URL (e.g., `https://xxx.trycloudflare.com`) t
 
 | Command | Description |
 |---|---|
-| `9remote ui` | Start web interface at `localhost:2208` |
-| `9remote start` | Headless server mode (systemd, Docker, SSH) |
-| `9remote browser chain --goal "…" --steps '[…]'` | AI browser automation |
+| `1terminal ui` | Start web interface at `localhost:2208` |
+| `1terminal start` | Headless server mode (systemd, Docker, SSH) |
+| `1terminal browser chain --goal "…" --steps '[…]'` | AI browser automation |
 
 ---
 
@@ -114,7 +114,7 @@ Android device mirroring requires Android SDK Platform Tools (`adb`) and install
 
 ### 🤖 5. AI Browser Automation
 
-- `9remote browser` exposes a 14-op `chain` DSL (`go`, `wait`, `click`, `type`, `select`, `hover`, `enter`, `scroll`, `read`, `search`, `find`, `shot`, `run`, `upload`) with verified steps and self-healing.
+- `1terminal browser` exposes a 14-op `chain` DSL (`go`, `wait`, `click`, `type`, `select`, `hover`, `enter`, `scroll`, `read`, `search`, `find`, `shot`, `run`, `upload`) with verified steps and self-healing.
 - Agents discover it through the bundled **`9r-browser`** skill; a small decision model (Jev, free or OpenRouter preset) handles unknown labels and login flows.
 - Run in an isolated profile or drive your real Chrome through the MV3 bridge extension — no debug banner required.
 
@@ -142,7 +142,7 @@ Android device mirroring requires Android SDK Platform Tools (`adb`) and install
 
 ## 🛡️ Security Architecture
 
-9Remote implements secure local and remote access:
+1Terminal implements secure local and remote access:
 
 - **Direct WebSocket/WebRTC transport:** terminals and file transfers use WebSocket; remote desktop uses WebRTC data channels for low latency.
 - **Path jail:** file explorer enforces strict path boundaries and blocks sensitive system paths.
@@ -153,9 +153,8 @@ Android device mirroring requires Android SDK Platform Tools (`adb`) and install
 
 ## 📂 Project Structure (Monorepo)
 
-- **`host/`** — Node.js server that runs on your machine. Serves PTY terminals, streams desktop/browser, handles file operations, and integrates AI coding agents. Published to npm as `9remote`.
+- **`host/`** — Node.js server that runs on your machine. Serves PTY terminals, streams desktop/browser, handles file operations, and integrates AI coding agents. Published to npm as `1terminal`.
 - **`web/`** — Next.js web client interface deployed to Cloudflare Workers. Provides the UI for accessing the host.
-- **`desktop/`** — Tauri desktop wrapper (optional).
 - **`gitbook/`** — documentation site.
 - **`scripts/`** — build and packaging tools.
 
@@ -199,10 +198,10 @@ npm run host:sync         # Build + sync to local agent
 
 ## 🔒 Distribution
 
-The `9remote` npm package is published from this repository. Install only from npm or build from source.
+The `1terminal` npm package is published from this repository. Install only from npm or build from source.
 
 ---
 
 ## 📄 License
 
-Apache License 2.0 — see [LICENSE](LICENSE). Free to use, modify, and distribute, including commercially. The "9remote" name and branding are not covered by the license.
+Apache License 2.0 — see [LICENSE](LICENSE). Free to use, modify, and distribute, including commercially. The "1terminal" name and branding are not covered by the license.
