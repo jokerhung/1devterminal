@@ -132,11 +132,19 @@ INSTALL_DIR="$HOME/1terminal"
 if [ -d "$INSTALL_DIR" ]; then
     print_warning "Directory $INSTALL_DIR already exists."
     echo ""
-    echo "1. Remove old directory and reinstall (fresh start)"
-    echo "2. Update to latest version (keeps local files)"
-    echo "3. Cancel"
-    echo ""
-    read -p "Choose option (1/2/3): " choice
+
+    # Check if running interactively (has TTY)
+    if [ -t 0 ]; then
+        echo "1. Remove old directory and reinstall (fresh start)"
+        echo "2. Update to latest version (keeps local files)"
+        echo "3. Cancel"
+        echo ""
+        read -p "Choose option (1/2/3): " choice
+    else
+        # Non-interactive mode (piped from curl): auto-update
+        print_info "Non-interactive mode detected. Auto-updating to latest version..."
+        choice="2"
+    fi
 
     case $choice in
         1)
