@@ -239,20 +239,34 @@ print_info "Starting 9Remote server to initialize permanent key..."
 cd "$INSTALL_DIR"
 npm run host:dev:server > /dev/null 2>&1 &
 SERVER_PID=$!
-sleep 10
+
+# Wait for server to be ready (check health endpoint)
+print_info "Waiting for server to be ready..."
+for i in {1..30}; do
+    if curl -s http://localhost:2208/api/health > /dev/null 2>&1; then
+        print_success "Server is ready"
+        break
+    fi
+    sleep 1
+    if [ $i -eq 30 ]; then
+        print_warning "Server health check timeout, continuing anyway..."
+    fi
+done
 
 if ! kill -0 $SERVER_PID 2>/dev/null; then
     print_error "Server failed to start"
     exit 1
 fi
 
-print_success "Server started successfully"
 print_info "Generating permanent API key..."
 
-if node host/cli/index.js key 2>/dev/null | grep -q "sk-"; then
+# Try to get the key - server should have generated it on startup
+sleep 2
+KEY_OUTPUT=$(cd "$INSTALL_DIR" && node host/cli/index.js key 2>&1)
+if echo "$KEY_OUTPUT" | grep -q "sk-"; then
     print_success "Permanent key generated"
 else
-    print_warning "Could not verify key generation"
+    print_warning "Could not verify key generation, but server is running"
 fi
 
 kill $SERVER_PID 2>/dev/null

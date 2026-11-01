@@ -222,21 +222,40 @@ Write-Info "Starting 9Remote server to initialize permanent key..."
 Set-Location $installDir
 try {
     $serverProcess = Start-Process PowerShell -ArgumentList "-NoProfile", "-Command", "cd '$installDir'; npm run host:dev:server" -PassThru -WindowStyle Hidden
-    Start-Sleep -Seconds 10
+
+    Write-Info "Waiting for server to be ready..."
+    $maxAttempts = 30
+    $serverReady = $false
+    for ($i = 1; $i -le $maxAttempts; $i++) {
+        Start-Sleep -Seconds 1
+        try {
+            $response = Invoke-WebRequest -Uri "http://localhost:2208/api/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) {
+                Write-Success "Server is ready"
+                $serverReady = $true
+                break
+            }
+        } catch {
+            # Continue waiting
+        }
+        if ($i -eq $maxAttempts) {
+            Write-Warning "Server health check timeout, continuing anyway..."
+        }
+    }
 
     if ($serverProcess.HasExited) {
         Write-CustomError "Server failed to start"
         exit 1
     }
 
-    Write-Success "Server started successfully"
     Write-Info "Generating permanent API key..."
+    Start-Sleep -Seconds 2
 
-    $keyResponse = & npm run --silent -- node cli/index.js key 2>$null
-    if ($keyResponse -match "Key\s+sk-") {
+    $keyResponse = & node "$installDir\host\cli\index.js" key 2>&1
+    if ($keyResponse -match "sk-") {
         Write-Success "Permanent key generated"
     } else {
-        Write-Warning "Could not verify key generation"
+        Write-Warning "Could not verify key generation, but server is running"
     }
 
     Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
