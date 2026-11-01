@@ -8,8 +8,8 @@ import { ProtocolManager } from "@/shared/transport/ProtocolManager";
 import { REMOTE_CONFIG } from "@/features/remote/constants/REMOTE_CONFIG";
 import { debugLog } from "@/shared/utils/debugLog";
 import { useConnectionStore } from "@/shared/stores/connectionStore";
-import { isLoopbackOrigin, isLocalHostNetwork } from "@/shared/utils/localOrigin";
-import { AGENT_PORT, LOCAL_HOST_ORIGIN, LOCAL_HOST_STATE } from "@/shared/constants/API";
+import { isHostServedPage } from "@/shared/utils/localOrigin";
+import { LOCAL_HOST_ORIGIN, LOCAL_HOST_STATE } from "@/shared/constants/API";
 import { headOf, tailOf } from "@/shared/utils/apiKey";
 import { setTrust } from "@/shared/transport/lib/deviceTrust";
 
@@ -68,17 +68,17 @@ export function useBus(config = {}) {
 
     const start = async () => {
       let auth = getAuth();
-      // Host-served page on the host's own port: the loopback carrier always
-      // wins over any stored remote auth (a stale tunnel login), so the key is
-      // read straight from the host.
+      // Host-served page on the host's own port: the loopback key always wins
+      // over any stored remote auth (a stale tunnel login), so localhost opens
+      // the workspace with no key prompt. The key is read straight from the host.
       //
       // Deliberately NOT done on the web dev server, which is loopback too but
       // is not the host: auto-minting a session there would skip the login
       // screen entirely, which is exactly what a build must not do.
-      const isLoopback = isLoopbackOrigin();
+      //
       // `!authKey` guards a re-key: once the user has deliberately switched the
       // workspace onto another host, that intent outranks the local host's key.
-      if (isLoopback && (window.location.port === String(AGENT_PORT) || process.env.NEXT_PUBLIC_DEV_HOST === "1") && !authKey && (auth?.tunnelUrl !== window.location.origin || process.env.NEXT_PUBLIC_DEV_HOST === "1")) {
+      if (isHostServedPage() && !authKey) {
         try {
           const res = await fetch(LOCAL_HOST_STATE);
           const data = res.ok ? await res.json() : null;

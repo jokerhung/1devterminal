@@ -37,8 +37,8 @@ import ReconnectScreen from "@/features/session/components/ReconnectScreen";
 import AnimatedBackground from "@/features/landing/components/AnimatedBackground";
 import { headOf, tailOf } from "@/shared/utils/apiKey";
 import { setTrust } from "@/shared/transport/lib/deviceTrust";
-import { isLoopbackOrigin } from "@/shared/utils/localOrigin";
-import { AGENT_PORT, LOCAL_HOST_ORIGIN, LOCAL_HOST_STATE } from "@/shared/constants/API";
+import { isHostServedPage } from "@/shared/utils/localOrigin";
+import { LOCAL_HOST_ORIGIN, LOCAL_HOST_STATE } from "@/shared/constants/API";
 
 import SessionList from "@/features/session/components/SessionList";
 import { useFleetStore, emitWhenReady } from "@/shared/stores/fleetStore";
@@ -184,28 +184,31 @@ export default function WorkspaceLayout({ children }) {
     if (authKey) setAuthState(getAuth());
   }, [authKey, getAuth]);
 
+  // Host-served page on the host's own port: mint the local session straight
+  // from the host, so localhost always opens the workspace without a key prompt
+  // — including over a stale remote login left in storage. Runs once per mount:
+  // a later host switch within the tab is the user's intent and is left alone.
+  const localAuthDone = useRef(false);
   useEffect(() => {
     setHydrated(true);
-    // Only the host's own port: there the host serves the page and holds the
-    // key, so a reload must not dump the user back on the login screen. A page
-    // on the web dev server is loopback too — it logs in like any other build.
-    if ((!auth?.apiKey || (process.env.NEXT_PUBLIC_DEV_HOST === "1" && auth?.tunnelUrl === window.location.origin)) && isLoopbackOrigin() && (window.location.port === String(AGENT_PORT) || process.env.NEXT_PUBLIC_DEV_HOST === "1")) {
-      fetch(LOCAL_HOST_STATE)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data?.permanentKey) {
-            const fullKey = data.permanentKey;
-            const head = headOf(fullKey);
-            const tail = tailOf(fullKey);
-            setTrust(head, { tail });
-            const a = { apiKey: head, tunnelUrl: data.loopbackOrigin || LOCAL_HOST_ORIGIN, mode: "local", tempKey: null, localIp: null };
-            setAuth(a);
-            setAuthState(a);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [auth, setAuth]);
+    if (localAuthDone.current) return;
+    if (!isHostServedPage()) return;
+    localAuthDone.current = true;
+    fetch(LOCAL_HOST_STATE)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.permanentKey) {
+          const fullKey = data.permanentKey;
+          const head = headOf(fullKey);
+          const tail = tailOf(fullKey);
+          setTrust(head, { tail });
+          const a = { apiKey: head, tunnelUrl: data.loopbackOrigin || LOCAL_HOST_ORIGIN, mode: "local", tempKey: null, localIp: null };
+          setAuth(a);
+          setAuthState(a);
+        }
+      })
+      .catch(() => {});
+  }, [setAuth]);
 
   // WebKit-on-macOS drops or misroutes the click of trackpad tap-to-click presses.
   useEffect(() => installTapClickFix(), []);

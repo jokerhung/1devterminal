@@ -23,10 +23,10 @@ import { buildCodespaceUrl } from "@/shared/constants/github";
 import { setTrust, withTail } from "@/shared/transport/lib/deviceTrust";
 import { LOGIN_ERROR_KEY, ONE_TIME_CODE_LENGTH, PENDING_SAVE_KEY } from "@/shared/constants/transport";
 import { headOf, tailOf, isLegacyApiKey } from "@/shared/utils/apiKey";
-import { isLoopbackOrigin } from "@/shared/utils/localOrigin";
+import { isHostServedPage, isLoopbackOrigin } from "@/shared/utils/localOrigin";
 import { parsePairingInput } from "@/features/hosts/lib/parsePairingInput";
 import { finishPairingLogin, armPairingSave } from "@/features/hosts/lib/switchHost";
-import { AGENT_PORT, LOCAL_HOST_ORIGIN } from "@/shared/constants/API";
+import { LOCAL_HOST_ORIGIN } from "@/shared/constants/API";
 
 
 function LoginContent() {
@@ -81,7 +81,7 @@ function LoginContent() {
     if (token || tempKey || sessionStorage.getItem(LOGIN_ERROR_KEY)) return;
     // On the agent's own port the effect below re-reads /api/ui/state, which is
     // fresher than anything remembered — including a `?mode=remote` intent.
-    if (isLoopbackOrigin() && (window.location.port === String(AGENT_PORT) || process.env.NEXT_PUBLIC_DEV_HOST === "1")) return;
+    if (isHostServedPage()) return;
     if (sessionStorage.getItem("9remote_manual_disconnect") === "1") return;
     if (!getAuth()?.apiKey) return;
     autoLoginDone.current = true;
@@ -89,6 +89,7 @@ function LoginContent() {
   }, [token, tempKey, getAuth, router]);
 
   useEffect(() => {
+    const loginError = sessionStorage.getItem(LOGIN_ERROR_KEY);
     if (window.location.hash || window.location.search) {
       const parsed = parsePairingInput(window.location.hash) || parsePairingInput(window.location.search);
       if (parsed?.tempKey) window.history.replaceState(null, "", window.location.pathname);
@@ -97,7 +98,7 @@ function LoginContent() {
     setRememberKey(savedPreference !== "false");
     setSavedKeys(loadKeys());
     setIsHydrated(true);
-    if (sessionStorage.getItem(LOGIN_ERROR_KEY)) {
+    if (loginError) {
       sessionStorage.removeItem(LOGIN_ERROR_KEY);
       setTailRejected(true);
     }
@@ -106,7 +107,9 @@ function LoginContent() {
     }
 
     // Auto-connect when page is served directly by the agent on AGENT_PORT.
-    if (isLoopbackOrigin() && (window.location.port === String(AGENT_PORT) || process.env.NEXT_PUBLIC_DEV_HOST === "1")) {
+    // A rejection that just landed stays on screen instead: re-minting the same
+    // rejected key would bounce straight back here, forever.
+    if (isHostServedPage() && !loginError) {
       fetch("/api/ui/state")
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
