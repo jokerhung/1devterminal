@@ -237,7 +237,9 @@ echo ""
 
 print_info "Starting 9Remote server to initialize permanent key..."
 cd "$INSTALL_DIR"
-npm run host:dev:server > /dev/null 2>&1 &
+
+# Start server with 'start' mode (headless) which triggers ensureKeyData()
+node host/cli/index.js start > /tmp/9remote-install.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to be ready (check health endpoint)
@@ -253,12 +255,14 @@ for i in {1..30}; do
         kill $SERVER_PID 2>/dev/null
         wait $SERVER_PID 2>/dev/null
         print_error "Failed to start server for key generation"
+        [ -f /tmp/9remote-install.log ] && tail -20 /tmp/9remote-install.log
         exit 1
     fi
 done
 
 if ! kill -0 $SERVER_PID 2>/dev/null; then
     print_error "Server process died unexpectedly"
+    [ -f /tmp/9remote-install.log ] && tail -20 /tmp/9remote-install.log
     exit 1
 fi
 
@@ -274,12 +278,22 @@ if [ -f "$HOME/.9remote/keys.json" ]; then
         print_warning "Key file exists but could not extract key value"
     fi
 else
-    print_warning "Key file not found at ~/.9remote/keys.json"
+    print_warning "Key file not found, creating manually..."
+    # Fallback: call ensureKeyData by starting server briefly in ui mode
+    timeout 5 node host/cli/index.js ui > /dev/null 2>&1 || true
+    sleep 1
+    if [ -f "$HOME/.9remote/keys.json" ]; then
+        KEY_VALUE=$(grep -o '"sk-[^"]*"' "$HOME/.9remote/keys.json" | head -1 | tr -d '"')
+        print_success "Key generated: $KEY_VALUE"
+    else
+        print_error "Failed to generate key file"
+    fi
 fi
 
 kill $SERVER_PID 2>/dev/null
 wait $SERVER_PID 2>/dev/null
 sleep 1
+rm -f /tmp/9remote-install.log
 print_success "Server stopped"
 
 echo ""

@@ -221,7 +221,8 @@ Write-Output ""
 Write-Info "Starting 9Remote server to initialize permanent key..."
 Set-Location $installDir
 try {
-    $serverProcess = Start-Process PowerShell -ArgumentList "-NoProfile", "-Command", "cd '$installDir'; npm run host:dev:server" -PassThru -WindowStyle Hidden
+    $logFile = Join-Path $env:TEMP "9remote-install.log"
+    $serverProcess = Start-Process PowerShell -ArgumentList "-NoProfile", "-Command", "cd '$installDir'; node host\cli\index.js start *> '$logFile'" -PassThru -WindowStyle Hidden
 
     Write-Info "Waiting for server to be ready..."
     $maxAttempts = 30
@@ -241,6 +242,9 @@ try {
         if ($i -eq $maxAttempts) {
             Write-Warning "Server health check timeout"
             Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+            if (Test-Path $logFile) {
+                Get-Content $logFile -Tail 20
+            }
             Write-CustomError "Failed to start server for key generation"
             exit 1
         }
@@ -248,6 +252,9 @@ try {
 
     if ($serverProcess.HasExited) {
         Write-CustomError "Server process died unexpectedly"
+        if (Test-Path $logFile) {
+            Get-Content $logFile -Tail 20
+        }
         exit 1
     }
 
@@ -263,11 +270,23 @@ try {
             Write-Warning "Key file exists but could not extract key value"
         }
     } else {
-        Write-Warning "Key file not found at $keysFile"
+        Write-Warning "Key file not found, creating manually..."
+        # Fallback: call ensureKeyData by starting server briefly in ui mode
+        $fallbackProc = Start-Process -FilePath "node" -ArgumentList "$installDir\host\cli\index.js", "ui" -PassThru -WindowStyle Hidden -NoNewWindow
+        Start-Sleep -Seconds 3
+        Stop-Process -Id $fallbackProc.Id -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+        if (Test-Path $keysFile) {
+            $keysContent = Get-Content $keysFile -Raw | ConvertFrom-Json
+            Write-Success "Key generated: $($keysContent.activeKey)"
+        } else {
+            Write-CustomError "Failed to generate key file"
+        }
     }
 
     Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 1
+    Remove-Item $logFile -Force -ErrorAction SilentlyContinue
     Write-Success "Server stopped"
 } catch {
     Write-Warning "Error during initialization: $_"
