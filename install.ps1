@@ -239,27 +239,35 @@ try {
             # Continue waiting
         }
         if ($i -eq $maxAttempts) {
-            Write-Warning "Server health check timeout, continuing anyway..."
+            Write-Warning "Server health check timeout"
+            Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+            Write-CustomError "Failed to start server for key generation"
+            exit 1
         }
     }
 
     if ($serverProcess.HasExited) {
-        Write-CustomError "Server failed to start"
+        Write-CustomError "Server process died unexpectedly"
         exit 1
     }
 
     Write-Info "Generating permanent API key..."
     Start-Sleep -Seconds 2
 
-    $keyResponse = & node "$installDir\host\cli\index.js" key 2>&1
-    if ($keyResponse -match "sk-") {
-        Write-Success "Permanent key generated"
+    $keysFile = Join-Path $env:USERPROFILE ".9remote\keys.json"
+    if (Test-Path $keysFile) {
+        $keysContent = Get-Content $keysFile -Raw | ConvertFrom-Json
+        if ($keysContent.activeKey -match "sk-") {
+            Write-Success "Permanent key generated: $($keysContent.activeKey)"
+        } else {
+            Write-Warning "Key file exists but could not extract key value"
+        }
     } else {
-        Write-Warning "Could not verify key generation, but server is running"
+        Write-Warning "Key file not found at $keysFile"
     }
 
     Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
     Write-Success "Server stopped"
 } catch {
     Write-Warning "Error during initialization: $_"

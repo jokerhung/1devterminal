@@ -249,29 +249,37 @@ for i in {1..30}; do
     fi
     sleep 1
     if [ $i -eq 30 ]; then
-        print_warning "Server health check timeout, continuing anyway..."
+        print_warning "Server health check timeout"
+        kill $SERVER_PID 2>/dev/null
+        wait $SERVER_PID 2>/dev/null
+        print_error "Failed to start server for key generation"
+        exit 1
     fi
 done
 
 if ! kill -0 $SERVER_PID 2>/dev/null; then
-    print_error "Server failed to start"
+    print_error "Server process died unexpectedly"
     exit 1
 fi
 
 print_info "Generating permanent API key..."
-
-# Try to get the key - server should have generated it on startup
 sleep 2
-KEY_OUTPUT=$(cd "$INSTALL_DIR" && node host/cli/index.js key 2>&1)
-if echo "$KEY_OUTPUT" | grep -q "sk-"; then
-    print_success "Permanent key generated"
+
+# The key is auto-generated on first server start, just verify it exists
+if [ -f "$HOME/.9remote/keys.json" ]; then
+    KEY_VALUE=$(grep -o '"sk-[^"]*"' "$HOME/.9remote/keys.json" | head -1 | tr -d '"')
+    if [ -n "$KEY_VALUE" ]; then
+        print_success "Permanent key generated: $KEY_VALUE"
+    else
+        print_warning "Key file exists but could not extract key value"
+    fi
 else
-    print_warning "Could not verify key generation, but server is running"
+    print_warning "Key file not found at ~/.9remote/keys.json"
 fi
 
 kill $SERVER_PID 2>/dev/null
 wait $SERVER_PID 2>/dev/null
-sleep 2
+sleep 1
 print_success "Server stopped"
 
 echo ""
