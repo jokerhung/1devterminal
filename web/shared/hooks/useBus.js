@@ -8,8 +8,8 @@ import { ProtocolManager } from "@/shared/transport/ProtocolManager";
 import { REMOTE_CONFIG } from "@/features/remote/constants/REMOTE_CONFIG";
 import { debugLog } from "@/shared/utils/debugLog";
 import { useConnectionStore } from "@/shared/stores/connectionStore";
-import { isHostServedPage } from "@/shared/utils/localOrigin";
-import { LOCAL_HOST_ORIGIN, LOCAL_HOST_STATE } from "@/shared/constants/API";
+import { hostOriginFrom, isHostServedPage } from "@/shared/utils/localOrigin";
+import { LOCAL_HOST_STATE } from "@/shared/constants/API";
 import { headOf, tailOf } from "@/shared/utils/apiKey";
 import { setTrust } from "@/shared/transport/lib/deviceTrust";
 
@@ -87,9 +87,8 @@ export function useBus(config = {}) {
               setTrust(head, { tail });
               auth = {
                 apiKey: head,
-                // A dev server is NOT the host: its own origin carries no host
-                // API, so the WS endpoint must be the host's loopback origin.
-                tunnelUrl: data.loopbackOrigin || LOCAL_HOST_ORIGIN,
+                // A host-served page uses its own origin; a dev page uses the host origin.
+                tunnelUrl: hostOriginFrom(data) || window.location.origin,
                 mode: "local",
                 tempKey: null,
                 localIp: null

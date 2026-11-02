@@ -6,6 +6,7 @@ import { FEATURES, BEHAVIOR } from "@/shared/constants/features";
 import { ADAPTER_STATE, CHANNELS, WS_ZOMBIE_MS, WS_OUTBOUND_STALL_MS } from "@/shared/constants/transport";
 import { debugLog } from "@/shared/utils/debugLog";
 import { termLog } from "@/shared/utils/termLog";
+import { isHostServedPage } from "@/shared/utils/localOrigin";
 
 const RETRY = BEHAVIOR.retry;
 
@@ -390,6 +391,17 @@ export class WsProtocol extends BaseProtocol {
     debugLog("transport", `[ws] retry attempt=${attempt}/${this._maxAttempts}`);
     termLog("switch", `ws retry ${attempt}/${this._maxAttempts}`);
     this._ctx?.onRetryStatus?.({ isRetrying: true, attempt, maxAttempts: this._maxAttempts, failed: false });
+
+    if (isHostServedPage()) {
+      let target;
+      try { target = new URL(this._auth.tunnelUrl); } catch { target = null; }
+      if (target && ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)) {
+        this._socket?.disconnect();
+        this._retryScheduled = false;
+        this._connectInternal();
+        return;
+      }
+    }
 
     try {
       const resp = await fetch(API_ENDPOINTS.connect, {
