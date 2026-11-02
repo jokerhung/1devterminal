@@ -18,12 +18,14 @@ export function isLoopbackOrigin() {
  * True on the page the host serves itself: loopback on the host's own port.
  * There the host holds the key, so the page may mint a local session instead of
  * asking the user for one. The web dev server is loopback too but is NOT the
- * host — it must keep the normal login flow unless opted in by NEXT_PUBLIC_DEV_HOST.
+ * host — unless the dev host opt-in is on, in which case the workspace talks to
+ * the local host directly and auto-login is the intent.
  */
 export function isHostServedPage() {
   if (typeof window === "undefined") return false;
   if (!isLoopbackOrigin()) return false;
-  return window.location.port === String(AGENT_PORT) || process.env.NEXT_PUBLIC_DEV_HOST === "1";
+  if (window.location.port === String(AGENT_PORT)) return true;
+  return process.env.NEXT_PUBLIC_DEV_HOST === "1" || process.env.NEXT_PUBLIC_DEV_AGENT === "1";
 }
 
 /** Check if running on the same machine as the host (loopback or Tauri desktop app). */

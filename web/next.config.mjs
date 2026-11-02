@@ -24,11 +24,6 @@ const nextConfig = {
   // Turbopack disabled — bug vercel/next.js#88844: useContext/useState null on
   // prerender of error/not-found pages under monorepo root.
   outputFileTracingRoot: monorepoRoot,
-  // Turbopack infers the monorepo root from the root lockfile and resolves/watches
-  // the whole tree (host/, expo/) — pinning to web/ shrinks dev memory (vercel/next.js#94432).
-  turbopack: {
-    root: __dirname
-  },
   experimental: {
     // Dev FS cache is never pruned upstream and gets deserialized into RAM on every
     // boot — unbounded .next/dev growth (vercel/next.js#81161). Proper fix is Next 16.3.
@@ -59,7 +54,7 @@ const nextConfig = {
     ...(process.env.NODE_ENV === "development"
       && (process.env.NEXT_PUBLIC_DEV_HOST === "1" || process.env.NEXT_PUBLIC_DEV_AGENT === "1") ? {
       async rewrites() {
-        const hostOrigin = process.env.DEV_HOST_ORIGIN || process.env.DEV_AGENT_ORIGIN || "http://localhost:2208";
+        const hostOrigin = process.env.DEV_HOST_ORIGIN || process.env.DEV_AGENT_ORIGIN || "http://127.0.0.1:2208";
           const agentApi = [
           "/api/ui/:path*",
           "/api/key/:path*",

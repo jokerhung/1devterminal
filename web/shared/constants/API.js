@@ -20,7 +20,13 @@ export const AGENT_PORT = Number(process.env.NEXT_PUBLIC_AGENT_PORT) || 2208;
 // The host admits this origin (LOCAL_UI_ORIGINS) and answers only a loopback peer.
 export const LOCAL_HOST_ORIGIN = `http://127.0.0.1:${AGENT_PORT}`;
 export const LOCAL_AGENT_ORIGIN = LOCAL_HOST_ORIGIN;
-export const LOCAL_HOST_STATE = `${LOCAL_HOST_ORIGIN}/api/ui/state`;
+// Same-origin when the page IS the host (its own port); cross-origin on the dev
+// server. Calling the host's own origin from a page it serves avoids a needless
+// CORS round-trip and works even when the host binds loopback only.
+export const LOCAL_HOST_STATE =
+  typeof location !== "undefined" && location.port === String(AGENT_PORT)
+    ? "/api/ui/state"
+    : `${LOCAL_HOST_ORIGIN}/api/ui/state`;
 export const LOCAL_AGENT_STATE = LOCAL_HOST_STATE;
 
 // Command to update the agent to latest version

@@ -144,6 +144,14 @@ export function getLoopbackOrigin() {
   return `http://127.0.0.1:${SERVER_PORT}`;
 }
 
+/** Did this request come from a browser on this machine? Used to decide whether
+ *  the permanent key may ride along in /api/ui/state — the host's own UI already
+ *  shows it, and no other caller should be handed it. */
+function isLoopbackPeer(req) {
+  const ra = req.socket?.remoteAddress;
+  return ra === "127.0.0.1" || ra === "::1" || ra === "::ffff:127.0.0.1" || ra === "::ffff:0:0:0:1";
+}
+
 export function getTunnelPayload() {
   const isReady = uiState.step === STEP.READY && !!uiState.tunnelUrl;
   return {
@@ -303,10 +311,15 @@ export function handleStateGet(req, res) {
   // localIp + loopbackOrigin ride along so a page served elsewhere (the web dev
   // server) can open the direct carriers without waiting on the Worker — the
   // tunnel only feeds the tunnel rung.
+  // permanentKey only for a loopback caller addressed by a local Host: that is
+  // the host's own UI, which already displays the key. The router's private-route
+  // guards have already rejected tunnel and rebound-name callers by this point.
+  const loopback = isLoopbackPeer(req);
   jsonOk(res, {
     ...uiState, ...cachedPermissions, desktopEnabled, remoteAvailable,
     localIp: getLocalEndpoint(), loopbackOrigin: getLoopbackOrigin(),
-    transport: getTransportState()
+    transport: getTransportState(),
+    ...(loopback ? { permanentKey: uiState.permanentKey } : {})
   });
 }
 

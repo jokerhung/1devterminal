@@ -847,6 +847,18 @@ export async function startTransportServer(server) {
       }
     }
 
+    // Dev only: a loopback browser with the proven key is the developer's own
+    // page (Next dev server, another browser) — holding it for approval just
+    // blocks local work. Never applies over a tunnel or outside NREMOTE_ENV=development.
+    if (process.env.NREMOTE_ENV === "development" && !isTunnel && isLoopback && originOk
+      && deviceId && !isDeviceKicked(deviceId) && gateDevice(deviceId) === DEVICE_GATE.unknown) {
+      const devTail = presentedTailOf(authOf(socket), openSealedTail);
+      if (devTail && verifyKeyTail(devTail, headOf(authOf(socket)?.apiKey || ""))) {
+        approveDeviceSession(deviceId);
+        logger.info(`[dev] loopback device auto-admitted (key TAIL verified): ${deviceId.slice(0, 8)}`);
+      }
+    }
+
     // Loopback workspace is the machine's own UI — not a client device.
     if (isLocalSocket(socket)) {
       pushUiLogDebug(`Local connection not tracked: ${ip} (device: ${deviceId?.slice(0, 8) || "none"})`);

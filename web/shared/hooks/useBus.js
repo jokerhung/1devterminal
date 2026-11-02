@@ -68,21 +68,18 @@ export function useBus(config = {}) {
 
     const start = async () => {
       let auth = getAuth();
-      // Host-served page on the host's own port: the loopback key always wins
-      // over any stored remote auth (a stale tunnel login), so localhost opens
-      // the workspace with no key prompt. The key is read straight from the host.
-      //
-      // Deliberately NOT done on the web dev server, which is loopback too but
-      // is not the host: auto-minting a session there would skip the login
-      // screen entirely, which is exactly what a build must not do.
+      // Host-served page (the host's own port, or a dev server with the local
+      // host opt-in): the loopback key always wins over any stored remote auth
+      // (a stale tunnel login), so the workspace opens with no key prompt. The
+      // key is read straight from the host.
       //
       // `!authKey` guards a re-key: once the user has deliberately switched the
       // workspace onto another host, that intent outranks the local host's key.
       if (isHostServedPage() && !authKey) {
         try {
           const res = await fetch(LOCAL_HOST_STATE);
-          const data = res.ok ? await res.json() : null;
           if (res.ok) {
+            const data = await res.json();
             if (data?.permanentKey) {
               const fullKey = data.permanentKey;
               const head = headOf(fullKey);
@@ -90,6 +87,8 @@ export function useBus(config = {}) {
               setTrust(head, { tail });
               auth = {
                 apiKey: head,
+                // A dev server is NOT the host: its own origin carries no host
+                // API, so the WS endpoint must be the host's loopback origin.
                 tunnelUrl: data.loopbackOrigin || LOCAL_HOST_ORIGIN,
                 mode: "local",
                 tempKey: null,

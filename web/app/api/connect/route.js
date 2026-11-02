@@ -85,6 +85,20 @@ export async function POST(request) {
 
     clearFailures(SCOPE, ip);
 
+    // Local dev bypass: skip D1 when running Next.js dev server. The dev page
+    // talks to the host on this machine directly, so hand back its loopback
+    // origin as the WS endpoint — a null tunnelUrl makes the retry path clear
+    // the endpoint and wedge the workspace.
+    if (process.env.NODE_ENV === "development") {
+      return jsonOk({
+        tunnelUrl: `http://127.0.0.1:${process.env.DEV_AGENT_PORT || 2208}`,
+        apiKey,
+        tempKey,
+        localIp: "127.0.0.1",
+        hostKeys: null
+      });
+    }
+
     // Cache resolved tunnel URL to reduce D1 lookups on reconnect bursts
     let sessionMissing = false;
     const cached = await cachedLookup(cacheKeys.tunnel(apiKey), CACHE_TTL.tunnelSec, async () => {
