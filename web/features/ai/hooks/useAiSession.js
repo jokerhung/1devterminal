@@ -400,9 +400,14 @@ export function useAiSession({
   isVisible = true
 }) {
   const busRef = useRef(bus);
+  const promptWaitersRef = useRef(new Set());
   useEffect(() => {
     busRef.current = bus;
   }, [bus]);
+  useEffect(() => () => {
+    for (const timer of promptWaitersRef.current) clearTimeout(timer);
+    promptWaitersRef.current.clear();
+  }, []);
 
   const initSession = useAiStore((s) => s.initSession);
   const setMetadata = useAiStore((s) => s.setMetadata);
@@ -1351,7 +1356,6 @@ export function useAiSession({
       // Arm the silence probe's prompt window: a lost user_message echo leaves no
       // running flag for it to key on.
       promptSentAtRef.current = Date.now();
-      const b = busRef.current; // no store fallback — null (foreign bus not up) must wait, not hit the main machine
       // Sending is what marks the previous turn read (the terminal side clears on typing) —
       // focusing the composer is not. The store emits clearStatus down to the host itself.
       useNotificationStore.getState().clearNotification(sessionId);
@@ -1365,19 +1369,39 @@ export function useAiSession({
       // the text they typed, not a path list.
       // #48: a dead-but-not-closed carrier swallows the emit silently — the ack wraps
       // it so the loss surfaces as a resendable error instead of vanishing.
-      if (b) {
-        emitPromptAck(
-          (payload, done) => b.emit("ai:prompt", payload, done),
-          {
-            sessionId,
-            message: text,
-            cwd: workspacePath,
-            ...(attachments?.length ? { attachments } : {})
-          },
-          PROMPT_ACK_TIMEOUT_MS,
-          (reason) => useAiStore.getState().setPromptError(sessionId, text, reason)
-        );
-      }
+      const payload = {
+        sessionId,
+        message: text,
+        cwd: workspacePath,
+        ...(attachments?.length ? { attachments } : {})
+      };
+      const lost = (reason) => useAiStore.getState().setPromptError(sessionId, text, reason);
+      const startedAt = Date.now();
+      const send = () => {
+        const current = busRef.current;
+        // A pane can remain mounted while its carrier is being replaced. Keep the
+        // user's text until that replacement is usable instead of dropping it.
+        if (!current || current.connected === false) {
+          const timer = setTimeout(() => {
+            promptWaitersRef.current.delete(timer);
+            if (Date.now() - startedAt >= PROMPT_ACK_TIMEOUT_MS) return lost("timeout");
+            send();
+          }, 250);
+          promptWaitersRef.current.add(timer);
+          return;
+        }
+        try {
+          emitPromptAck(
+            (nextPayload, done) => current.emit("ai:prompt", nextPayload, done),
+            payload,
+            PROMPT_ACK_TIMEOUT_MS,
+            lost
+          );
+        } catch (error) {
+          lost(error.message || "send failed");
+        }
+      };
+      send();
     },
     [sessionId, workspacePath]
   );

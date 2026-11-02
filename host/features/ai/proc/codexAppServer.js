@@ -2,6 +2,7 @@ import { JsonRpcClient } from "./jsonRpcClient.js";
 import { sandboxPolicyFor, approvalPolicyFor, collaborationModeFor, turnSettingsFor, BLOCKED_TEXT_RE, MODE_LABELS, nextModeUp } from "../codexSettings.js";
 import { elicitationQuestions } from "../elicitation.js";
 import { createLogger } from "../../../lib/logger.js";
+import { retryCodexConfig } from "../codexConfigRecovery.js";
 
 const logger = createLogger("codex-app-server");
 
@@ -530,18 +531,24 @@ export class CodexAppServer {
     if (this.isTurnRunning) return Promise.reject(new Error("Codex turn is already running."));
     this.isTurnRunning = true;
     if (String(prompt).trim() === "/review") {
-      return this.rpc.request("review/start", {
+      return retryCodexConfig(() => this.rpc.request("review/start", {
         threadId: this.threadId,
         target: { type: "uncommittedChanges" }
+      })).catch((error) => {
+        this.isTurnRunning = false;
+        throw error;
       });
     }
-    return this.rpc.request("turn/start", {
+    return retryCodexConfig(() => this.rpc.request("turn/start", {
       threadId: this.threadId,
       input: this._turnInput(prompt, attachments),
       ...this._turnOverrides()
-    }).then((res) => {
+    })).then((res) => {
       if (res?.turn?.id) this.turnId = res.turn.id;
       return res;
+    }).catch((error) => {
+      this.isTurnRunning = false;
+      throw error;
     });
   }
 

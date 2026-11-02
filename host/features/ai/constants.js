@@ -63,6 +63,8 @@ export const AI_MAX_TOOL_OUTPUT = 16 * 1024;
 
 export const AI_DOCTOR_TIMEOUT_MS = 30000;
 
+export const CODEX_CONFIG_RETRY_DELAYS_MS = [500, 1500];
+
 // Cache TTL for engine model catalog.
 export const AI_MODEL_CACHE_TTL_MS = 30000;
 

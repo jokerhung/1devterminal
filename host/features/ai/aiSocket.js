@@ -168,6 +168,7 @@ function mirrorAiStatus(manager, sessionId, event, data, engine) {
 
 // Ack order: rebuild from the CLI transcript first, then metadata into the surviving log — reversed, F5 loses restored turns or the catalog.
 async function doorSession(session, engine = session.engine) {
+  await session.ensureReady?.();
   // Normalize an idle Codex thread before serializing reconnect state.
   await session.reconcileTurn?.();
   session.refreshFromStore();
@@ -362,7 +363,8 @@ export function setupAiHandlers(socket, io, manager = globalAiManager) {
       let releaseCreate;
       creating.set(sessionId, { session, done: new Promise((r) => { releaseCreate = r; }) });
       try {
-        await session.ready;
+        if (session.ensureReady) await session.ensureReady();
+        else await session.ready;
         logger.info(`[ai] create → spawned, ready in ${Date.now() - recvAt}ms`);
       } finally {
         creating.delete(sessionId);
@@ -404,7 +406,8 @@ export function setupAiHandlers(socket, io, manager = globalAiManager) {
       // A zombie session (daemon proc gone) must not swallow the message — heal it
       // first, and wait out any boot-time spawn still in flight on a healthy one.
       await session.ensureProcAlive?.();
-      if (session.ready) await session.ready;
+      if (session.ensureReady) await session.ensureReady();
+      else if (session.ready) await session.ready;
       // Let the app-server clear an idle stale flag before rejecting this prompt.
       await session.reconcileTurn?.();
       logger.info(`[ai] prompt: ${sessionId} (engine: ${session.engine}): ${message?.slice(0, 60)}`);

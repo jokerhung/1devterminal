@@ -18,6 +18,7 @@ import { TURN_END_EVENTS } from "./aiStatus.js";
 import { saveAiPreference } from "./models.js";
 import { PATHS } from "../../lib/constants.js";
 import { createLogger } from "../../lib/logger.js";
+import { retryCodexConfig } from "./codexConfigRecovery.js";
 
 const logger = createLogger("ai");
 
@@ -1334,6 +1335,19 @@ export class AiSession {
       if (!alive) await this.restart();
     })();
     try { await this._ensureAlive; } finally { this._ensureAlive = null; }
+  }
+
+  // Replace a rejected startup promise once configuration becomes readable again.
+  async ensureReady() {
+    if (this.engine !== AI_ENGINES.CODEX) return this.ready;
+    if (this._readyRecovery) return this._readyRecovery;
+    this._readyRecovery = retryCodexConfig(async (attempt) => {
+      if (this.destroyed) throw new Error("AI session has been destroyed");
+      if (attempt > 0) return this.restart();
+      return this.ready;
+    });
+    try { return await this._readyRecovery; }
+    finally { this._readyRecovery = null; }
   }
 
   // Ask the engine for authoritative state before applying the prompt busy guard.
