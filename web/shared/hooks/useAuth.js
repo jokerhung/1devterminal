@@ -43,7 +43,10 @@ export const verifyKeyWithAgent = verifyKeyWithHost;
 
 // Resolve origin where host answers, or null if remote.
 async function resolveHostOrigin() {
-  if (!isLoopbackOrigin()) return isLocalHostNetwork() || process.env.NEXT_PUBLIC_STATIC_EXPORT === "1" ? window.location.origin : null;
+  if (!isLoopbackOrigin()) {
+    if (!isLocalHostNetwork() && process.env.NEXT_PUBLIC_STATIC_EXPORT !== "1") return null;
+    return hostOriginFrom() || window.location.origin;
+  }
   return hostOriginFrom(await fetchHostState()) || window.location.origin;
 }
 

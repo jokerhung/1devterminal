@@ -2,6 +2,7 @@ import { CHANNELS, ADAPTER_STATE, RTC_HEARTBEAT_LEGACY_TIMEOUT_MS } from "@/shar
 import { debugLog } from "@/shared/utils/debugLog";
 import { termLog } from "@/shared/utils/termLog";
 import { probeRtcLiveness } from "./pmWatchers";
+import { isDirectHostConnection } from "@/shared/utils/localOrigin";
 
 // Control message sending, ack tracking, buffering, and inbound dispatch.
 
@@ -91,9 +92,9 @@ export function dispatch(pm, event, payload, source) {
     const data = source === "rtc" ? payload?.args?.[0] : payload;
     if (data) {
       const { tunnelUrl, localIp, status } = data;
-      // Ignore tunnel update when current page origin is the host workspace.
-      if (typeof window !== "undefined" && pm._auth.tunnelUrl === window.location?.origin) {
-        termLog("switch", `tunnel:updated ignored (carrier is the page origin; got url=${tunnelUrl || "none"})`);
+      // A direct host connection must keep its endpoint when the tunnel changes.
+      if (isDirectHostConnection(pm._auth.tunnelUrl)) {
+        termLog("switch", `tunnel:updated ignored (direct host carrier; got url=${tunnelUrl || "none"})`);
         return;
       }
       termLog("switch", `tunnel:updated recv (status=${status} url=${tunnelUrl || "none"})`);

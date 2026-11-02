@@ -14,6 +14,22 @@ export function isLoopbackOrigin() {
   return h === "localhost" || h === "::1" || h === "[::1]" || h.startsWith("127.") || h.endsWith(".localhost");
 }
 
+/** Direct host carriers stay independent of public tunnel discovery and updates. */
+export function isDirectHostConnection(endpoint) {
+  if (typeof window === "undefined" || !endpoint) return false;
+  if (endpoint === window.location.origin) return true;
+  try {
+    const target = new URL(endpoint);
+    const h = target.hostname;
+    if (!["http:", "https:"].includes(target.protocol)) return false;
+    if (isLocalHostNetwork() && h === window.location.hostname && target.port === String(AGENT_PORT)) return true;
+    if (!isLoopbackOrigin()) return false;
+    return h === "localhost" || h === "[::1]" || h.startsWith("127.") || h.endsWith(".localhost");
+  } catch {
+    return false;
+  }
+}
+
 /**
  * True on the page the host serves itself: loopback on the host's own port.
  * There the host holds the key, so the page may mint a local session instead of
@@ -76,15 +92,18 @@ export const isLocalAgentNetwork = isLocalHostNetwork;
  * the host knows itself by; the constant is the fallback for the one case that
  * has no payload yet (a fresh dev page that never asked).
  *
- * ponytail: same-machine only. A browser on another LAN host reaches
- * 127.0.0.1 as itself — that needs localIp plus LOCAL_UI_ORIGINS widened;
- * add when a remote browser is actually a case.
+ * A dev page accessed over LAN uses the same hostname on the host port.
+ * It uses public key verification; private loopback APIs stay loopback-only.
  */
 export function hostOriginFrom(data) {
   if (typeof window === "undefined") return null;
-  // Only a loopback page can reach a loopback host; a LAN or tunnel page keeps
-  // its own origin (the host there is reached through the tunnel, not 127.0.0.1).
-  if (!isLoopbackOrigin()) return null;
+  if (!isLoopbackOrigin()) {
+    const devHost = process.env.NEXT_PUBLIC_DEV_HOST === "1" || process.env.NEXT_PUBLIC_DEV_AGENT === "1";
+    if (!devHost || !isLocalHostNetwork()) return null;
+    const origin = new URL(window.location.origin);
+    origin.port = String(AGENT_PORT);
+    return origin.origin;
+  }
   // Listening on the host's own port means the host is serving this page:
   // it IS the host, so its own origin is already the right answer.
   if (window.location.port === String(AGENT_PORT)) return null;
