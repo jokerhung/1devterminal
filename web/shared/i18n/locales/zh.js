@@ -184,7 +184,7 @@ export default {
     failedRenameSession: "重命名会话失败：{error}"
   },
   sessions: {
-    headerTitle: "9remote.cc",
+    headerTitle: "1Terminal",
     connected: "已连接",
     disconnected: "已断开",
     codespaceStopped: "Codespace 已停止",

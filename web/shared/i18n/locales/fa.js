@@ -184,7 +184,7 @@ export default {
     failedRenameSession: "تغییر نام نشست ناموفق بود: {error}"
   },
   sessions: {
-    headerTitle: "9remote.cc",
+    headerTitle: "1Terminal",
     connected: "متصل",
     disconnected: "قطع شده",
     codespaceStopped: "Codespace متوقف شد",

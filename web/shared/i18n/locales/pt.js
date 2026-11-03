@@ -184,7 +184,7 @@ export default {
     failedRenameSession: "Falha ao renomear sessão: {error}"
   },
   sessions: {
-    headerTitle: "9remote.cc",
+    headerTitle: "1Terminal",
     connected: "Conectado",
     disconnected: "Desconectado",
     codespaceStopped: "Codespace parado",

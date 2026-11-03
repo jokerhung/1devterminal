@@ -184,7 +184,7 @@ export default {
     failedRenameSession: "Gagal menamakan semula sesi: {error}"
   },
   sessions: {
-    headerTitle: "9remote.cc",
+    headerTitle: "1Terminal",
     connected: "Disambung",
     disconnected: "Diputuskan",
     codespaceStopped: "Codespace dihentikan",

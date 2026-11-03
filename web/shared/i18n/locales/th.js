@@ -184,7 +184,7 @@ export default {
     failedRenameSession: "ไม่สามารถเปลี่ยนชื่อเซสชัน: {error}"
   },
   sessions: {
-    headerTitle: "9remote.cc",
+    headerTitle: "1Terminal",
     connected: "เชื่อมต่อแล้ว",
     disconnected: "ตัดการเชื่อมต่อ",
     codespaceStopped: "Codespace หยุดทำงาน",

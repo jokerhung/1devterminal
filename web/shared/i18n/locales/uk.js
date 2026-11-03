@@ -184,7 +184,7 @@ export default {
     failedRenameSession: "Не вдалося перейменувати сесію: {error}"
   },
   sessions: {
-    headerTitle: "9remote.cc",
+    headerTitle: "1Terminal",
     connected: "Підключено",
     disconnected: "Відключено",
     codespaceStopped: "Codespace зупинено",

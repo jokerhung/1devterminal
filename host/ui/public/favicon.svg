@@ -1,5 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <rect width="24" height="24" rx="6" fill="#FF570A"/>
-  <polyline points="5 18 10.5 12 5 6" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="13" y1="18" x2="19" y2="18" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d405c"/><stop offset="1" stop-color="#17223a"/></linearGradient>
+  <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#43607f"/><stop offset="1" stop-color="#38506d"/></linearGradient>
+  <linearGradient id="ink" x1="0.05" y1="1" x2="0.95" y2="0"><stop offset="0" stop-color="#1d6be4"/><stop offset=".55" stop-color="#2aa6e4"/><stop offset="1" stop-color="#36dcd9"/></linearGradient>
+  <linearGradient id="ink2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2cb5e8"/><stop offset="1" stop-color="#3be3cf"/></linearGradient>
+  <radialGradient id="halo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#1fa6ea" stop-opacity=".45"/><stop offset="1" stop-color="#1fa6ea" stop-opacity="0"/></radialGradient>
+  <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#000" flood-opacity=".35"/></filter></defs><g transform="translate(256 256) scale(1) translate(-256 -256)"><g id="art" transform="translate(16 23) scale(.4528) translate(-435 -437)" filter="url(#soft)">
+  <rect x="435" y="437" width="1060" height="1028" rx="58" fill="url(#body)" stroke="#4f78a6" stroke-width="6"/>
+  <path d="M435 495 a58 58 0 0 1 58 -58 H1437 a58 58 0 0 1 58 58 V535 H435 Z" fill="url(#bar)"/>
+  <rect x="435" y="535" width="1060" height="5" fill="#5f86b2" opacity=".7"/>
+  <rect x="1292" y="484" width="30" height="5" rx="2" fill="#8fb0d0"/>
+  <circle cx="1373" cy="487" r="16" fill="#8fb0d0"/>
+  <path d="M1426 475 L1450 499 M1450 475 L1426 499" stroke="#8fb0d0" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="948" cy="980" rx="330" ry="360" fill="url(#halo)"/>
+  <path d="M1000 645 H1020 V1215 H1160 V1315 H735 V1215 H878 V795 Q800 835 740 850 V770 Q800 742 870 700 Q940 655 1000 645 Z" fill="url(#ink)" stroke="#5be0ee" stroke-opacity=".5" stroke-width="3" stroke-linejoin="round"/>
+  <polyline points="945,868 1088,1002 955,1133" fill="none" stroke="#1b2a45" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="945,868 1088,1002 955,1133" fill="none" stroke="url(#ink2)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="1078" y="1118" width="197" height="42" rx="8" fill="url(#ink2)"/></g></g></svg>

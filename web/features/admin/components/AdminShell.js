@@ -119,7 +119,7 @@ export default function AdminShell({ children }) {
           <Menu size={20} />
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs bg-brand-500 text-white">9</div>
+          <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs bg-brand-500 text-white">1</div>
           <h1 className="text-sm font-semibold tracking-tight">1Terminal Admin</h1>
         </div>
         <ThemeToggle className="rounded-[6px]" />

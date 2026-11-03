@@ -184,7 +184,7 @@ export default {
     failedRenameSession: "שינוי שם הפעלה נכשל: {error}"
   },
   sessions: {
-    headerTitle: "9remote.cc",
+    headerTitle: "1Terminal",
     connected: "מחובר",
     disconnected: "מנותק",
     codespaceStopped: "Codespace הופסק",
