@@ -17,7 +17,8 @@ import { createRetryLadder, shouldApplyHydrateAck } from "../lib/hydrateRetry";
 import { classifyLiveEvent, fetchedIsSafe } from "../lib/gapFill";
 import { termLog } from "@/shared/utils/termLog";
 import { RECOVER_DEBOUNCE_MS, PEEK_TIMEOUT_MS } from "@/features/terminal/constants/terminalConfig";
-import { RESOLVE_ACK_TIMEOUT_MS, PROMPT_ACK_TIMEOUT_MS } from "../constants";
+import { RESOLVE_ACK_TIMEOUT_MS, PROMPT_ACK_TIMEOUT_MS, ATTACH_CHUNK_SIZE, ATTACH_CHUNK_ACK_TIMEOUT_MS } from "../constants";
+import { stageAttachments } from "../lib/attachUpload";
 import { emitPromptAck } from "../lib/promptAck";
 
 // CLI reports skills as bare id strings, the agent scan as objects; normalize to one shape.
@@ -1377,7 +1378,8 @@ export function useAiSession({
       };
       const lost = (reason) => useAiStore.getState().setPromptError(sessionId, text, reason);
       const startedAt = Date.now();
-      const send = () => {
+      let staged = false;
+      const send = async () => {
         const current = busRef.current;
         // A pane can remain mounted while its carrier is being replaced. Keep the
         // user's text until that replacement is usable instead of dropping it.
@@ -1391,6 +1393,15 @@ export function useAiSession({
           return;
         }
         try {
+          // Staged once: a retry after a lost carrier must not re-upload or re-consume refs.
+          if (!staged && payload.attachments) {
+            payload.attachments = await stageAttachments(
+              (chunk, done) => current.emit("ai:attachChunk", chunk, done),
+              payload.attachments,
+              { chunkSize: ATTACH_CHUNK_SIZE, timeoutMs: ATTACH_CHUNK_ACK_TIMEOUT_MS, idPrefix: `${startedAt}` }
+            );
+            staged = true;
+          }
           emitPromptAck(
             (nextPayload, done) => current.emit("ai:prompt", nextPayload, done),
             payload,

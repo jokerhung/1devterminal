@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { MAX_ATTACHMENT_SIZE, MAX_ATTACHMENTS, CLIPBOARD_ATTACH_TIMEOUT } from "@/features/terminal/constants/terminalConfig";
+import { MAX_ATTACHMENT_SIZE, MAX_ATTACHMENTS, CLIPBOARD_ATTACH_TIMEOUT, CLIPBOARD_ATTACH_CHUNK_SIZE } from "@/features/terminal/constants/terminalConfig";
 import { vibrate } from "@/shared/utils/vibration";
 import { useI18n } from "@/shared/i18n";
 
@@ -40,14 +40,25 @@ export function useAttachments({ bus, sessionId }) {
 
   // Push one attachment into the host OS clipboard + Ctrl+V, waiting for ack so
   // the CLI reads it before the next overwrites the clipboard.
-  const sendOneAttachment = useCallback((att) => new Promise((resolve) => {
-    let done = false;
-    const finish = () => { if (!done) { done = true; resolve(); } };
-    // No bus (foreign pane still connecting) — drop the attachment rather than
-    // throwing; the timeout resolves the batch either way.
-    bus?.emit("clipboard-attach", { sessionId, filename: att.name, type: att.type, content: att.content }, finish);
-    setTimeout(finish, CLIPBOARD_ATTACH_TIMEOUT);
-  }), [bus, sessionId]);
+  // Sent in ack-paced chunks so one multi-MB frame can't starve the heartbeat pong
+  // (host ping timeout) or exceed a proxy's message cap — both drop the socket.
+  const sendOneAttachment = useCallback(async (att) => {
+    // No bus (foreign pane still connecting) — drop the attachment rather than throwing.
+    if (!bus) return;
+    const uploadId = `${Date.now()}_${att.id}`;
+    const total = Math.max(1, Math.ceil(att.content.length / CLIPBOARD_ATTACH_CHUNK_SIZE));
+    for (let index = 0; index < total; index++) {
+      const chunk = att.content.slice(index * CLIPBOARD_ATTACH_CHUNK_SIZE, (index + 1) * CLIPBOARD_ATTACH_CHUNK_SIZE);
+      const ok = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(false), CLIPBOARD_ATTACH_TIMEOUT);
+        bus.emit("clipboard-attach", { sessionId, filename: att.name, type: att.type, content: chunk, uploadId, index, total }, (res) => {
+          clearTimeout(timer);
+          resolve(res?.success !== false);
+        });
+      });
+      if (!ok) return;
+    }
+  }, [bus, sessionId]);
 
   const handleFileUpload = useCallback(async (event) => {
     vibrate();

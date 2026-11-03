@@ -8,7 +8,7 @@ const SESSION_EVENTS = new Set([
   "input", "resize", "session-resume", "upload-file", "clipboard-attach", "joinSession",
   "requestHistory", "aiHistory", "peekSeq", "requestGap", "deleteSession", "renameSession",
   "getNote", "saveNote", "claimAgentSession", "setSessionMode", "clearStatus", "clearNotification",
-  "ai:create", "ai:prompt", "ai:permission", "ai:question", "ai:stop", "ai:stopTask",
+  "ai:create", "ai:prompt", "ai:attachChunk", "ai:permission", "ai:question", "ai:stop", "ai:stopTask",
   "ai:restart", "ai:options", "ai:destroy", "ai:rewind", "ai:peekSeq", "aiSince",
   "ai:queueRemove", "ai:queueClear"
 ]);

@@ -12,6 +12,8 @@ import path from "path";
 const PERSISTENCE_MODE = "daemon";
 const PASTE_KEY = "\x16"; // Ctrl+V — tell the CLI to read the OS clipboard
 const RESUME_EXIT_MS = 2000; // wait for claude to exit before relaunching the conversation
+const ATTACH_MAX_CHUNKS = 64; // 5MB base64 at 256KB chunks is ~28; headroom for smaller chunk sizes
+const ATTACH_MAX_PENDING = 8;
 const CLEAR_LINE = process.platform === "win32" ? "\x1b" : "\x05\x15";
 
 // Keystrokes arrive piecemeal, so rebuild the current line to spot agent launch
@@ -158,10 +160,30 @@ export function setupInputHandlers(socket, sessions) {
   //  - image → OS clipboard + Ctrl+V (CLI reads image bytes → [Image #N])
   //  - file  → write to disk + type its path (CLI reads the file reference/path)
   // Ack lets web send attachments serially so the CLI consumes each before the next.
-  socket.on("clipboard-attach", async ({ sessionId, filename, type, content }, ack) => {
+  // Chunked uploads (uploadId/index/total) are buffered per socket until complete.
+  const pendingUploads = new Map();
+  socket.on("disconnect", () => pendingUploads.clear());
+
+  socket.on("clipboard-attach", async ({ sessionId, filename, type, content, uploadId, index, total }, ack) => {
     if (!sessionId) return ack?.({ success: false, error: "no session" });
     const session = sessions.get(sessionId);
     if (!session) return ack?.({ success: false, error: "no session" });
+    if (uploadId !== undefined) {
+      if (typeof content !== "string" || !Number.isInteger(index) || !Number.isInteger(total) || total < 1 || total > ATTACH_MAX_CHUNKS || index < 0 || index >= total) {
+        return ack?.({ success: false, error: "bad chunk" });
+      }
+      let upload = pendingUploads.get(uploadId);
+      if (!upload) {
+        if (pendingUploads.size >= ATTACH_MAX_PENDING) return ack?.({ success: false, error: "too many uploads" });
+        upload = { parts: [] };
+        pendingUploads.set(uploadId, upload);
+      }
+      upload.parts[index] = content;
+      if (index < total - 1) return ack?.({ success: true });
+      pendingUploads.delete(uploadId);
+      if (upload.parts.length !== total || upload.parts.some((p) => p === undefined)) return ack?.({ success: false, error: "missing chunks" });
+      content = upload.parts.join("");
+    }
     try {
       const safeFilename = (filename || "paste").replace(/[^a-zA-Z0-9._-]/g, "_");
       const filePath = path.join(UPLOAD_DIR, `${Date.now()}_${safeFilename}`);

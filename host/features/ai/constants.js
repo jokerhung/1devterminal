@@ -14,10 +14,15 @@ export function claudeBin() {
   return process.env.NREMOTE_CLAUDE_BIN || "claude";
 }
 
+// Chunked attachment staging limits (5MB base64 at 256KB chunks is ~28 chunks).
+export const ATTACH_MAX_CHUNKS = 64;
+export const ATTACH_MAX_PENDING = 16;
+
 export const AI_SOCKET_EVENTS = {
   CREATE: "ai:create",
   PEEK_SEQ: "ai:peekSeq",
   PROMPT: "ai:prompt",
+  ATTACH_CHUNK: "ai:attachChunk",
   PERMISSION: "ai:permission",
   QUESTION: "ai:question",
   STOP: "ai:stop",

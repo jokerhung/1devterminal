@@ -1,4 +1,4 @@
-import { AI_SOCKET_EVENTS } from "./constants.js";
+import { AI_SOCKET_EVENTS, ATTACH_MAX_CHUNKS, ATTACH_MAX_PENDING } from "./constants.js";
 import { globalAiManager, destroyDetachedChat } from "./aiManager.js";
 import { broadcast } from "../../transport/broadcast.js";
 import { createLogger } from "../../lib/logger.js";
@@ -383,8 +383,42 @@ export function setupAiHandlers(socket, io, manager = globalAiManager) {
     }
   });
 
+  // Large attachments arrive as chunks ahead of the prompt, which then references them by uploadId.
+  const chunkUploads = new Map(); // uploadId -> { parts } while assembling
+  const stagedUploads = new Map(); // uploadId -> base64 content, consumed by the prompt
+  socket.on("disconnect", () => { chunkUploads.clear(); stagedUploads.clear(); });
+
+  socket.on(AI_SOCKET_EVENTS.ATTACH_CHUNK, ({ uploadId, index, total, content } = {}, cb) => {
+    const valid = typeof uploadId === "string" && typeof content === "string"
+      && Number.isInteger(index) && Number.isInteger(total)
+      && total >= 1 && total <= ATTACH_MAX_CHUNKS && index >= 0 && index < total;
+    if (!valid) return cb?.({ ok: false, error: "bad chunk" });
+    let upload = chunkUploads.get(uploadId);
+    if (!upload) {
+      if (chunkUploads.size + stagedUploads.size >= ATTACH_MAX_PENDING) return cb?.({ ok: false, error: "too many uploads" });
+      upload = { parts: [] };
+      chunkUploads.set(uploadId, upload);
+    }
+    upload.parts[index] = content;
+    if (index < total - 1) return cb?.({ ok: true });
+    chunkUploads.delete(uploadId);
+    if (upload.parts.length !== total || upload.parts.some((p) => p === undefined)) return cb?.({ ok: false, error: "missing chunks" });
+    stagedUploads.set(uploadId, upload.parts.join(""));
+    logger.info(`[ai] attachment staged: ${uploadId} (${total} chunks)`);
+    cb?.({ ok: true });
+  });
+
   socket.on(AI_SOCKET_EVENTS.PROMPT, async ({ sessionId, message, cwd, attachments }, cb) => {
     try {
+      if (Array.isArray(attachments)) {
+        attachments = attachments.map((a) => {
+          if (!a?.uploadId) return a;
+          const content = stagedUploads.get(a.uploadId);
+          if (content === undefined) throw new Error("attachment upload missing");
+          stagedUploads.delete(a.uploadId);
+          return { filename: a.filename, type: a.type, content };
+        });
+      }
       let session = manager.getSession(sessionId);
       if (!session) {
         logger.warn(`[ai] session ${sessionId} not found on prompt, auto-creating with claude`);

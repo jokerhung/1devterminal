@@ -142,7 +142,8 @@ export class WsProtocol extends BaseProtocol {
     if (!this._socket?.connected) return false;
     if (channel === CHANNELS.control) {
       const { event, args = [], cb } = payload;
-      if (cb) this._socket.emit(event, ...args, cb);
+      // A returning ack proves the send path is alive — the outbound watchdog reads this.
+      if (cb) this._socket.emit(event, ...args, (...reply) => { this._lastAckAt = Date.now(); cb(...reply); });
       else this._socket.emit(event, ...args);
       return true;
     }
@@ -166,6 +167,12 @@ export class WsProtocol extends BaseProtocol {
   // Outbound liveness: browser ws.bufferedAmount stuck > 0 across two ticks
   // means the send path is dead even though server pings still arrive.
   _outboundStalled(socket) {
+    // An ack-paced upload (chunked attachments) keeps the buffer non-empty at every
+    // sample without being stalled; acks still flowing back means it is not.
+    if (Date.now() - (this._lastAckAt || 0) < WS_OUTBOUND_STALL_MS) {
+      this._lastBufferedAmount = 0;
+      return false;
+    }
     try {
       const ws = socket?.io?.engine?.transport?.ws;
       const amt = typeof ws?.bufferedAmount === "number" ? ws.bufferedAmount : 0;

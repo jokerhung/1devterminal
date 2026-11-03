@@ -76,7 +76,9 @@ export const HISTORY_FETCH = {
 
 export const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
 export const MAX_ATTACHMENTS = 5;
-export const CLIPBOARD_ATTACH_TIMEOUT = 3000;
+// Per-chunk ack wait; a chunk is small, so this stays short even on slow uplinks.
+export const CLIPBOARD_ATTACH_TIMEOUT = 15000;
+export const CLIPBOARD_ATTACH_CHUNK_SIZE = 256 * 1024;
 export const CLIPBOARD_ATTACH_GAP = 150;
 export const INPUT_ENTER_DELAY = 100;
 export const INPUT_MAX_HEIGHT_MOBILE = 101;

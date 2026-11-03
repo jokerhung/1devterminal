@@ -46,3 +46,6 @@ export const RESOLVE_ACK_TIMEOUT_MS = 5000;
 // carrier — surface it as a resendable error instead of silent loss (#48). Longer
 // than the gate's 5s: the host may auto-create the session before answering.
 export const PROMPT_ACK_TIMEOUT_MS = 8000;
+// Attachments above one chunk are staged piecewise before the prompt (see attachUpload.js).
+export const ATTACH_CHUNK_SIZE = 256 * 1024;
+export const ATTACH_CHUNK_ACK_TIMEOUT_MS = 15000;
