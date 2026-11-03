@@ -292,11 +292,12 @@ const CODEX_EVENT_OF_KEY = Object.fromEntries(
 const CODEX_STATE_HEAD = /^\[hooks\.state\."(?<key>[^"]+)"\]$/m;
 const CODEX_APP_SERVER_TIMEOUT_MS = 15000;
 
-function codexHookList(bin) {
+function codexHookList(bin, home = null) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(bin, ["app-server"], { stdio: ["pipe", "pipe", "ignore"] });
+      const env = home ? { ...process.env, CODEX_HOME: home } : process.env;
+      child = spawn(bin, ["app-server"], { stdio: ["pipe", "pipe", "ignore"], env });
     } catch {
       return resolve([]);
     }
@@ -400,9 +401,11 @@ function upsertCodexTrust(filePath, entries) {
 }
 
 // Query codex app-server to compute and trust hook hashes in config.toml.
-export async function reconcileCodexHookTrust({ run = codexHookList, bin = BINARIES.codex } = {}) {
-  const hooksPath = PATHS.codexHooks();
-  const reported = await run(bin);
+// `home` targets a private CODEX_HOME instead of ~/.codex.
+export async function reconcileCodexHookTrust({ run = codexHookList, bin = BINARIES.codex, home = null } = {}) {
+  const hooksPath = home ? path.join(home, "hooks.json") : PATHS.codexHooks();
+  const configPath = home ? path.join(home, "config.toml") : PATHS.codex();
+  const reported = await run(bin, home);
   const byKey = new Map(reported.map((r) => [r.key, r.hash]));
   const ours = codexHandlersIn(hooksPath).filter((h) => h.command.includes("&tool=codex"));
   const entries = [];
@@ -413,7 +416,7 @@ export async function reconcileCodexHookTrust({ run = codexHookList, bin = BINAR
     else missing.push(h.key);
   }
   if (!reported.length) return { entries: [], missing, skipped: true };
-  upsertCodexTrust(PATHS.codex(), entries);
+  upsertCodexTrust(configPath, entries);
   return { entries, missing, skipped: false };
 }
 

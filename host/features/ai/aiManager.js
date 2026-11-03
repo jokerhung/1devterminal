@@ -7,6 +7,7 @@ import * as daemonClient from "../terminal/ptyDaemonClient.js";
 import { createLogger } from "../../lib/logger.js";
 import { registerDoneReleaser } from "../terminal/statusManager.js";
 import { queueSkillInstall } from "../browserUse/skill.js";
+import { releaseCodexHome, sweepCodexHomes } from "./codexHome.js";
 
 const logger = createLogger("ai");
 
@@ -110,6 +111,7 @@ function chatActive(procId) {
 // destroySession alone cannot reach it, so stop its daemon proc and drop its snapshots.
 export async function destroyDetachedChat(chatId, client = daemonClient) {
   await client.procStop(chatId).catch(() => {});
+  await releaseCodexHome(chatId);
   for (const engine of Object.values(AI_ENGINES)) {
     try { fs.unlinkSync(aiSnapshotFile(chatId, engine)); } catch {}
   }
@@ -176,6 +178,11 @@ export function killOrphanClaudeProcs() {
     }
   });
 }
+
+// Homes of chats that no longer exist; same liveness rule as the daemon procs.
+const sweepIdleCodexHomes = () => sweepCodexHomes(chatActive).catch((err) => logger.warn(`codex home sweep failed: ${err.message}`));
+setInterval(sweepIdleCodexHomes, ORPHAN_SWEEP_INTERVAL_MS).unref?.();
+setImmediate(sweepIdleCodexHomes);
 
 let sweepTimer = null;
 // Boot: sweep once the daemon connects (or now, if it already has). Runtime: the

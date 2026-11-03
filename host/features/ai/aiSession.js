@@ -6,6 +6,7 @@ import { getExtendedEnv } from "./adapters/env.js";
 import { recoverBundleFromTranscript } from "./transcript.js";
 import { readNewAttachments } from "./claudeTranscript.js";
 import { readThreadGoal } from "./goal.js";
+import { codexHomeEnv, releaseCodexHome } from "./codexHome.js";
 import { getEngineDef, isManagedEngine, doctorSpecOf } from "./adapters/index.js";
 import { DaemonProc } from "./proc/daemonProc.js";
 import { replayWindow } from "./aiEventSlice.js";
@@ -910,7 +911,8 @@ export class AiSession {
   async refreshGoal(threadId) {
     if (this.engine !== AI_ENGINES.CODEX || this.goalReading === threadId) return;
     this.goalReading = threadId;
-    const goal = await readThreadGoal(threadId, this.cwd).catch(() => null);
+    const env = { ...getExtendedEnv(), ...(await codexHomeEnv(this.id).catch(() => ({}))) };
+    const goal = await readThreadGoal(threadId, this.cwd, env).catch(() => null);
     this.goalReading = null;
     // A stale read (the thread moved on) must not stamp its goal over the current one.
     if (this.threadId !== threadId) return;
@@ -1405,6 +1407,7 @@ export class AiSession {
       if (stopped?.then) stopped.then(release, release);
       else release();
     }
+    if (this.engine === AI_ENGINES.CODEX) releaseCodexHome(this.id, stopped);
     const file = aiSnapshotFile(this.id, this.engine);
     const drop = () => { try { fs.unlinkSync(file); } catch {} };
     if (stopped?.then) stopped.then(drop, drop);

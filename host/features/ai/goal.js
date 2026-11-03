@@ -8,13 +8,13 @@ const GOAL_TIMEOUT_MS = 5000;
 const CLIENT_INFO = { name: "9remote", title: "9Remote", version: "1.0.0" };
 
 /** The thread's active goal, or null when it has none. Never throws. */
-export function readThreadGoal(threadId, cwd) {
+export function readThreadGoal(threadId, cwd, env = getExtendedEnv()) {
   if (!threadId || typeof threadId !== "string") return Promise.resolve(null);
 
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn("codex", ["app-server"], { cwd, env: getExtendedEnv(), stdio: ["pipe", "pipe", "ignore"] });
+      child = spawn("codex", ["app-server"], { cwd, env, stdio: ["pipe", "pipe", "ignore"] });
     } catch {
       return resolve(null);
     }

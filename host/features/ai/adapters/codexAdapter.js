@@ -9,6 +9,7 @@ import { readCodexFileChanges, readCodexParsedCommands } from "../transcript.js"
 import { codexItemEvents, isCodexFileChange, isCodexToolItem } from "../codexItems.js";
 import { CodexAppServer } from "../proc/codexAppServer.js";
 import { spawnArgsFor, BLOCKED_TEXT_RE, MODE_LABELS, nextModeUp } from "../codexSettings.js";
+import { codexHomeEnv } from "../codexHome.js";
 import { createLogger } from "../../../lib/logger.js";
 
 const logger = createLogger("ai");
@@ -212,6 +213,11 @@ export class CodexAdapter {
     return this._appServerProc;
   }
 
+  /** Spawn env: the usual PATH extras plus this chat's private CODEX_HOME. */
+  async _codexEnv() {
+    return { ...getExtendedEnv({ hostSessionId: this.hostSessionId }), ...(await codexHomeEnv(this.hostSessionId)) };
+  }
+
   /** The carrier this chat's server was actually started on, for stopping it. */
   _activeCarrier() {
     return this._procOverride || this._appServerProc || null;
@@ -259,7 +265,7 @@ export class CodexAdapter {
       bin: "codex",
       args: ["app-server", ...spawnArgsFor({ enable: this.enable, disable: this.disable, skipGitRepoCheck: this.skipGitRepoCheck })],
       cwd: this.cwd,
-      env: getExtendedEnv({ hostSessionId: this.hostSessionId }),
+      env: await this._codexEnv(),
       keepStdin: true
     }).then(
       (r) => { diag(`carrier started (${carrier.constructor.name})`); return r; },
@@ -429,12 +435,12 @@ export class CodexAdapter {
     this._bind();
     const args = this.buildArgs(buildAttachedPrompt(prompt, staged), images);
 
-    this.proc.start({
+    this._codexEnv().then((env) => this.proc.start({
       bin: "codex",
       args,
       cwd: this.cwd,
-      env: getExtendedEnv({ hostSessionId: this.hostSessionId })
-    }).then(
+      env
+    })).then(
       // commit feeds lines printed before handlers were live, then closes stdin — codex exec blocks on a pipe nobody closes.
       (started) => started.commit((line) => this.feed(line)),
       // A missing binary or a daemon that refused the start reports here.

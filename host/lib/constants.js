@@ -23,6 +23,7 @@ export const PATHS = {
   BUFFERS: path.join(ROOT, "buffers"),
   DAEMON:  path.join(ROOT, "daemon"),
   AI_SESSIONS: path.join(ROOT, "ai-sessions"),
+  CODEX_HOMES: path.join(ROOT, "codexHomes"),
   BACKGROUNDS: path.join(ROOT, "backgrounds"),
 };
 

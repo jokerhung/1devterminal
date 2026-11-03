@@ -65,6 +65,16 @@ export const AI_DOCTOR_TIMEOUT_MS = 30000;
 
 export const CODEX_CONFIG_RETRY_DELAYS_MS = [500, 1500];
 
+// Each codex chat runs with its own CODEX_HOME so concurrent chats never share one config.toml.
+// NREMOTE_CODEX_SHARED_HOME=1 restores the shared ~/.codex.
+export const CODEX_ISOLATED_HOME = process.env.NREMOTE_CODEX_SHARED_HOME !== "1";
+// Copied into a chat home at creation; the chat owns its copy afterwards.
+export const CODEX_HOME_COPIED_FILES = ["config.toml", "hooks.json", "auth.json"];
+// Linked to the real home so history and transcripts stay in one place.
+export const CODEX_HOME_LINKED_DIRS = ["sessions"];
+export const CODEX_HOME_RM_RETRIES = 5;
+export const CODEX_HOME_RM_RETRY_DELAY_MS = 200;
+
 // Cache TTL for engine model catalog.
 export const AI_MODEL_CACHE_TTL_MS = 30000;
 
