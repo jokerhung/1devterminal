@@ -278,7 +278,14 @@ export class CodexAdapter {
 
     const threadId = await this.appServer.start().then(
       (id) => { diag(`handshake OK thread=${id}`); return id; },
-      (err) => { diag(`handshake FAILED: ${err.message}`); throw err; }
+      async (err) => {
+        diag(`handshake FAILED: ${err.message}`);
+        // The spawned server is this chat's own; a refused handshake must not leave it running
+        // (it would keep the thread locked for every later attempt).
+        this.appServer = null;
+        await carrier.stop?.().catch(() => {});
+        throw err;
+      }
     );
     this.setThreadId(threadId);
     this._bind();

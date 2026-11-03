@@ -69,6 +69,8 @@ export const AI_MAX_TOOL_OUTPUT = 16 * 1024;
 export const AI_DOCTOR_TIMEOUT_MS = 30000;
 
 export const CODEX_CONFIG_RETRY_DELAYS_MS = [500, 1500];
+// A thread still held by this chat's previous app-server frees up once that process is stopped.
+export const CODEX_WRITER_RETRY_DELAYS_MS = [500, 2000];
 
 // Each codex chat runs with its own CODEX_HOME so concurrent chats never share one config.toml.
 // NREMOTE_CODEX_SHARED_HOME=1 restores the shared ~/.codex.

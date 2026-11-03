@@ -1347,7 +1347,7 @@ export class AiSession {
       if (this.destroyed) throw new Error("AI session has been destroyed");
       if (attempt > 0) return this.restart();
       return this.ready;
-    });
+    }, { writerConflict: true });
     try { return await this._readyRecovery; }
     finally { this._readyRecovery = null; }
   }
