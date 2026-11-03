@@ -5,7 +5,7 @@
 import { STEP, PERMISSION_POLL_FAST_MS, PERMISSION_POLL_FAST_DURATION, SERVER_PORT } from "../lib/constants.js";
 import { setSseEmitter, readRecentLogs, clearRecentLogs, createLogger, IS_DEBUG } from "../lib/logger.js";
 import { LOG_TAIL_LINES } from "../lib/constants.js";
-import { writeCmd } from "../cli/utils/state.js";
+import { writeCmd, loadKey } from "../cli/utils/state.js";
 import { checkPermissions, openPermissionPane } from "../cli/utils/permissions.js";
 import { isAutoStartEnabled, setAutoStart } from "../cli/utils/autostart.js";
 import { jsonOk, jsonErr } from "../lib/router.js";
@@ -319,7 +319,8 @@ export function handleStateGet(req, res) {
     ...uiState, ...cachedPermissions, desktopEnabled, remoteAvailable,
     localIp: getLocalEndpoint(), loopbackOrigin: getLoopbackOrigin(),
     transport: getTransportState(),
-    ...(loopback ? { permanentKey: uiState.permanentKey } : {})
+    // Server-only boots (dev:local) never push the key into uiState — keys.json is the source
+    ...(loopback ? { permanentKey: uiState.permanentKey || loadKey().key || "" } : {})
   });
 }
 

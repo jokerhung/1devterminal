@@ -276,5 +276,18 @@ test("eventsSince flags hasMore when the gap reaches past the byte cap", () => {
   assert.ok(windowBytes(gap) <= 2048 + 200, "the patch respects its budget");
 });
 
+test("a newest turn of only oversized tool events still opens on its prompt", () => {
+  const big = "x".repeat(20 * 1024);
+  const log = [
+    { seq: 1, event: "user_message", data: { text: "run it" } },
+    { seq: 2, event: "tool_start", data: { id: "a", name: "bash", input: big } },
+    { seq: 3, event: "tool_result", data: { id: "a", name: "bash", output: big } }
+  ];
+  const w = replayWindow(log, 32 * 1024);
+  assert.ok(w.events.length > 0, "never an empty window");
+  assert.equal(w.events[0].event, "user_message");
+  assert.equal(w.hasMore, true);
+});
+
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 process.exit(fail ? 1 : 0);

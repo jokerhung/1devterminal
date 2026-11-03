@@ -134,9 +134,20 @@ export function replayWindow(events, maxBytes) {
   // Orphans are judged against what is actually sent: the spawner may exist megabytes
   // earlier and still be outside this budget.
   const tail = drawable(newestFit(inTurn, maxBytes));
-  const window = tail.some(isContentEvent) ? tail : standaloneWindow(inTurn, maxBytes);
+  const drawn = tail.some(isContentEvent) ? tail : standaloneWindow(inTurn, maxBytes);
+  const window = drawn.length ? drawn : lastPrompt(events, maxBytes);
   const hasMore = from > 0 || window.length < events.length;
   return { events: window, hasMore, fromSeq: window[0]?.seq ?? 0 };
+}
+
+// Every event of the newest turn can be too wide for one frame (a few large tool outputs).
+// Fall back to the newest earlier events that fit, then to the newest prompt alone, so the
+// pane never opens on a blank welcome screen.
+function lastPrompt(events, maxBytes) {
+  const earlier = drawable(newestFit(events, maxBytes));
+  if (earlier.some(isContentEvent)) return earlier;
+  const prompt = events.findLast((ev) => ev.event === "user_message");
+  return prompt && aiEventBytes(prompt) <= maxBytes ? [prompt] : [];
 }
 
 // A turn wider than the budget spends its tail on sub-agent cards whose spawner is out
