@@ -28,7 +28,7 @@ import { handleBrowserUsePost } from "./features/browserUse/browserUseSocket.js"
 import { attachBrowserRelay } from "./features/browserUse/extRelay.js";
 import { closeAllBrowsers } from "./features/browser/browserEngine.js";
 import {
-  loadUiState, loadDesktopState, refreshPermissionsAsync, pushUiEvent, setRemoteAvailable,
+  loadUiState, updateUiState, loadDesktopState, refreshPermissionsAsync, pushUiEvent, setRemoteAvailable,
   handleSseEvents, handleStateGet, handleStatePost,
   handleStop, handleStart, handleStopTunnel, handleShutdown,
   handleConnections, handleDesktopToggle, handleRtcToggle, handleLogsGet, handleLogsClear,
@@ -49,6 +49,7 @@ import { handleSessionsList, handleSessionDelete } from "./api/sessions.js";
 import { handleSystemStats } from "./api/system.js";
 import * as sleepInhibitor from "./lib/sleepInhibitor.js";
 import { loadSettings, loadKey, findKey } from "./cli/utils/state.js";
+import { ensureKeyData } from "./cli/session/key.js";
 import { REMOTE_CONFIG } from "./features/remote/REMOTE_CONFIG.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -476,6 +477,10 @@ export async function startServer() {
 
   generateLocalToken();
   loadUiState();
+  const savedKey = loadKey();
+  const keyData = savedKey.key ? savedKey : await ensureKeyData();
+  if (!keyData?.key) throw new Error("Unable to initialize the permanent key");
+  updateUiState({ permanentKey: keyData.key });
   loadDesktopState();
   const refreshPermissionsSafe = () =>
     refreshPermissionsAsync().catch((err) => logger.error(`permission refresh failed: ${err?.message || err}`));

@@ -185,7 +185,7 @@ npm run host:build
 print_success "Host package built successfully"
 
 # Create systemd service (Linux only)
-if [[ "$OSTYPE" == "linux-gnu"* ]] && check_command systemctl; then
+if [[ "$OSTYPE" == "linux-gnu"* ]] && check_command systemctl && [ -t 0 ]; then
     print_info "Would you like to create a systemd service? (recommended for auto-start)"
     read -p "(y/N): " -n 1 -r
     echo
@@ -201,7 +201,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$(which node) $INSTALL_DIR/host/index.js ui
+ExecStart=$(which node) $INSTALL_DIR/host/cli/index.js ui
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -235,66 +235,19 @@ echo ""
 print_success "9Remote is now installed at: $INSTALL_DIR"
 echo ""
 
-print_info "Starting 9Remote server to initialize permanent key..."
+print_info "Initializing permanent API key..."
 cd "$INSTALL_DIR"
+node --input-type=module <<'NODE'
+import { ensureKeyData } from "./host/cli/session/key.js";
+import { loadKey } from "./host/cli/utils/state.js";
 
-# Start server with 'start' mode (headless) which triggers ensureKeyData()
-node host/cli/index.js start > /tmp/9remote-install.log 2>&1 &
-SERVER_PID=$!
-
-# Wait for server to be ready (check health endpoint)
-print_info "Waiting for server to be ready..."
-for i in {1..30}; do
-    if curl -s http://localhost:2208/api/health > /dev/null 2>&1; then
-        print_success "Server is ready"
-        break
-    fi
-    sleep 1
-    if [ $i -eq 30 ]; then
-        print_warning "Server health check timeout"
-        kill $SERVER_PID 2>/dev/null
-        wait $SERVER_PID 2>/dev/null
-        print_error "Failed to start server for key generation"
-        [ -f /tmp/9remote-install.log ] && tail -20 /tmp/9remote-install.log
-        exit 1
-    fi
-done
-
-if ! kill -0 $SERVER_PID 2>/dev/null; then
-    print_error "Server process died unexpectedly"
-    [ -f /tmp/9remote-install.log ] && tail -20 /tmp/9remote-install.log
-    exit 1
-fi
-
-print_info "Generating permanent API key..."
-sleep 2
-
-# The key is auto-generated on first server start, just verify it exists
-if [ -f "$HOME/.9remote/keys.json" ]; then
-    KEY_VALUE=$(grep -o '"sk-[^"]*"' "$HOME/.9remote/keys.json" | head -1 | tr -d '"')
-    if [ -n "$KEY_VALUE" ]; then
-        print_success "Permanent key generated: $KEY_VALUE"
-    else
-        print_warning "Key file exists but could not extract key value"
-    fi
-else
-    print_warning "Key file not found, creating manually..."
-    # Fallback: call ensureKeyData by starting server briefly in ui mode
-    timeout 5 node host/cli/index.js ui > /dev/null 2>&1 || true
-    sleep 1
-    if [ -f "$HOME/.9remote/keys.json" ]; then
-        KEY_VALUE=$(grep -o '"sk-[^"]*"' "$HOME/.9remote/keys.json" | head -1 | tr -d '"')
-        print_success "Key generated: $KEY_VALUE"
-    else
-        print_error "Failed to generate key file"
-    fi
-fi
-
-kill $SERVER_PID 2>/dev/null
-wait $SERVER_PID 2>/dev/null
-sleep 1
-rm -f /tmp/9remote-install.log
-print_success "Server stopped"
+const savedKey = loadKey();
+const keyData = savedKey.key ? savedKey : await ensureKeyData();
+if (!keyData?.key || loadKey().key !== keyData.key) {
+    throw new Error("Failed to initialize and save the permanent key");
+}
+NODE
+print_success "Permanent key is ready (view it in the local Pair Device page)"
 
 echo ""
 print_info "To start the server manually, run:"
@@ -312,7 +265,10 @@ echo -e "  ${COLOR_GREEN}cloudflared tunnel --url http://localhost:2208${COLOR_R
 echo ""
 
 # Ask if user wants to start now
-read -p "Would you like to start 9Remote now? (y/N): " -n 1 -r
+REPLY=""
+if [ -t 0 ]; then
+    read -p "Would you like to start 9Remote now? (y/N): " -n 1 -r
+fi
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     print_info "Starting 9Remote in new terminal..."
