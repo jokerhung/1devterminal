@@ -67,6 +67,37 @@ function syncAuth(real, dir, chatId) {
   authBaseline.set(chatId, realMtime);
 }
 
+function resolveConfigFiles(real, dir) {
+  const file = path.join(dir, CONFIG_FILE);
+  if (!fs.existsSync(file)) return;
+  const content = fs.readFileSync(file, "utf8");
+  const tableStart = content.search(/^[ \t]*\[/m);
+  const rootEnd = tableStart < 0 ? content.length : tableStart;
+  const root = content.slice(0, rootEnd);
+  // Keep file references anchored to the original config when its home moves.
+  const resolved = root.replace(
+    /^([ \t]*(?:model_catalog_json|model_instructions_file)[ \t]*=[ \t]*)("(?:[^"\\\r\n]|\\.)*"|'[^'\r\n]*')(?=[ \t]*(?:#[^\r\n]*)?\r?$)/gm,
+    (line, setting, value) => {
+      const raw = value.slice(1, -1);
+      if (!raw || /^(?:[a-zA-Z]:|[/\\]|~[/\\])/.test(raw)) return line;
+      const prefix = JSON.stringify(`${real}${path.sep}`).slice(1, -1);
+      const absolute = value.startsWith("'")
+        ? JSON.stringify(path.resolve(real, raw))
+        : `"${prefix}${value.slice(1)}`;
+      return `${setting}${absolute}`;
+    }
+  );
+  if (resolved === root) return;
+  const tmp = `${file}.${process.pid}.${++tmpSeq}.tmp`;
+  try {
+    fs.writeFileSync(tmp, resolved + content.slice(rootEnd), { mode: 0o600 });
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+
 async function build(chatId) {
   const real = realCodexHome();
   const dir = codexHomeDir(chatId);
@@ -74,8 +105,9 @@ async function build(chatId) {
   // auth.json lives here: owner-only on POSIX (ignored on Windows).
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 
-  // An existing home may belong to a codex still running (daemon-held): never rewrite its config.
+  // Preserve a daemon-held chat's config, repairing only relocated file references.
   if (existed) {
+    resolveConfigFiles(real, dir);
     syncAuth(real, dir, chatId);
     linkDirs(real, dir);
     return dir;
@@ -85,6 +117,7 @@ async function build(chatId) {
     const src = path.join(real, name);
     if (fs.existsSync(src)) copyAtomic(src, path.join(dir, name));
   }
+  resolveConfigFiles(real, dir);
   authBaseline.set(chatId, mtimeOf(path.join(real, AUTH_FILE)));
   linkDirs(real, dir);
 
