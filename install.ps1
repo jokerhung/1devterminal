@@ -1,4 +1,4 @@
-# 9Remote Installation Script for Windows
+﻿# 9Remote Installation Script for Windows
 # Usage: irm https://raw.githubusercontent.com/jokerhung/1devterminal/master/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
@@ -149,16 +149,6 @@ if (Test-Path $installDir) {
     }
 }
 
-Write-Info "Cloning 9Remote repository..."
-try {
-    git clone https://github.com/jokerhung/1devterminal.git $installDir
-    Set-Location $installDir
-    Write-Success "Repository cloned successfully"
-} catch {
-    Write-CustomError "Failed to clone repository: $_"
-    exit 1
-}
-
 Write-Info "Installing dependencies... (this may take a few minutes)"
 try {
     npm install
@@ -218,117 +208,60 @@ Write-Output ""
 Write-Success "9Remote is now installed at: $installDir"
 Write-Output ""
 
-Write-Info "Starting 9Remote server to initialize permanent key..."
+Write-Info "Initializing permanent API key..."
 Set-Location $installDir
-try {
-    $logFile = Join-Path $env:TEMP "9remote-install.log"
-    $serverProcess = Start-Process PowerShell -ArgumentList "-NoProfile", "-Command", "cd '$installDir'; node host\cli\index.js start *> '$logFile'" -PassThru -WindowStyle Hidden
+$keyScript = @"
+import { ensureKeyData } from "./host/cli/session/key.js";
+import { loadKey } from "./host/cli/utils/state.js";
 
-    Write-Info "Waiting for server to be ready..."
-    $maxAttempts = 30
-    $serverReady = $false
-    for ($i = 1; $i -le $maxAttempts; $i++) {
-        Start-Sleep -Seconds 1
-        try {
-            $response = Invoke-WebRequest -Uri "http://localhost:2208/api/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
-            if ($response.StatusCode -eq 200) {
-                Write-Success "Server is ready"
-                $serverReady = $true
-                break
-            }
-        } catch {
-            # Continue waiting
-        }
-        if ($i -eq $maxAttempts) {
-            Write-Warning "Server health check timeout"
-            Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
-            if (Test-Path $logFile) {
-                Get-Content $logFile -Tail 20
-            }
-            Write-CustomError "Failed to start server for key generation"
-            exit 1
-        }
-    }
+const savedKey = loadKey();
+const keyData = savedKey.key ? savedKey : await ensureKeyData();
+if (!keyData?.key || loadKey().key !== keyData.key) {
+    throw new Error("Failed to initialize and save the permanent key");
+}
+"@
+$keyScript | node --input-type=module
+if ($LASTEXITCODE -ne 0) {
+    Write-CustomError "Failed to initialize the permanent key"
+    exit 1
+}
+Write-Success "Permanent key is ready (view it in the local Pair Device page)"
 
+Write-Output ""
+Write-Info "Starting 9Remote with npm run dev:local..."
+$webPort = 2208
+$serverProcess = Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$installDir'; npm run dev:local" -PassThru
+
+Write-Info "Waiting for the server to be ready..."
+$serverReady = $false
+for ($i = 1; $i -le 120; $i++) {
+    Start-Sleep -Seconds 1
     if ($serverProcess.HasExited) {
-        Write-CustomError "Server process died unexpectedly"
-        if (Test-Path $logFile) {
-            Get-Content $logFile -Tail 20
-        }
+        Write-CustomError "Server process exited unexpectedly"
         exit 1
     }
-
-    Write-Info "Generating permanent API key..."
-    Start-Sleep -Seconds 2
-
-    $keysFile = Join-Path $env:USERPROFILE ".9remote\keys.json"
-    if (Test-Path $keysFile) {
-        $keysContent = Get-Content $keysFile -Raw | ConvertFrom-Json
-        if ($keysContent.activeKey -match "sk-") {
-            Write-Success "Permanent key generated: $($keysContent.activeKey)"
-        } else {
-            Write-Warning "Key file exists but could not extract key value"
-        }
-    } else {
-        Write-Warning "Key file not found, creating manually..."
-        # Fallback: call ensureKeyData by starting server briefly in ui mode
-        $fallbackProc = Start-Process -FilePath "node" -ArgumentList "$installDir\host\cli\index.js", "ui" -PassThru -WindowStyle Hidden -NoNewWindow
-        Start-Sleep -Seconds 3
-        Stop-Process -Id $fallbackProc.Id -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 1
-        if (Test-Path $keysFile) {
-            $keysContent = Get-Content $keysFile -Raw | ConvertFrom-Json
-            Write-Success "Key generated: $($keysContent.activeKey)"
-        } else {
-            Write-CustomError "Failed to generate key file"
+    try {
+        Invoke-WebRequest -Uri "http://localhost:$webPort" -UseBasicParsing -TimeoutSec 2 | Out-Null
+        $serverReady = $true
+        break
+    } catch {
+        # A non-2xx response still means the server is listening
+        if ($_.Exception.Response) {
+            $serverReady = $true
+            break
         }
     }
-
-    Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
-    Remove-Item $logFile -Force -ErrorAction SilentlyContinue
-    Write-Success "Server stopped"
-} catch {
-    Write-Warning "Error during initialization: $_"
+}
+if (-not $serverReady) {
+    Write-Warning "Server did not respond in time, links below may not be available yet"
 }
 
-Write-Output ""
-Write-Info "To start the server manually, run:"
-Write-ColorOutput Green "  cd $installDir"
-Write-ColorOutput Green "  npm run dev:local"
 Write-Output ""
 Write-Info "Access the web interface at:"
-Write-ColorOutput Green "  http://localhost:2208/workspace"
+Write-ColorOutput Green "  http://localhost:${webPort}/workspace"
 if ($localIP -ne "localhost") {
-    Write-ColorOutput Green "  http://${localIP}:2208/workspace (LAN access)"
+    Write-ColorOutput Green "  http://${localIP}:${webPort}/workspace (LAN access)"
 }
 Write-Output ""
-Write-Info "For remote access, use Cloudflare Tunnel:"
-Write-ColorOutput Green "  cloudflared tunnel --url http://localhost:2208"
-Write-Output ""
-
-$startNow = Read-Host "Would you like to start 9Remote now? (y/N)"
-if ($startNow -eq 'y' -or $startNow -eq 'Y') {
-    Write-Info "Starting 9Remote in new window..."
-
-    if ($serviceResponse -eq 'y' -or $serviceResponse -eq 'Y') {
-        try {
-            Start-ScheduledTask -TaskName "9Remote"
-            Write-Success "9Remote service started"
-            Write-Info "Opening browser in 8 seconds..."
-            Start-Sleep -Seconds 8
-            Start-Process "http://localhost:2208/workspace"
-        } catch {
-            Write-Warning "Failed to start service. Starting manually..."
-            Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$installDir'; npm run dev:local"
-            Write-Info "Opening browser in 8 seconds..."
-            Start-Sleep -Seconds 8
-            Start-Process "http://localhost:2208/workspace"
-        }
-    } else {
-        Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$installDir'; npm run dev:local"
-        Write-Info "Opening browser in 8 seconds..."
-        Start-Sleep -Seconds 8
-        Start-Process "http://localhost:2208/workspace"
-    }
-}
+Write-Info "The server runs in the new PowerShell window. Close it to stop 9Remote."
+Start-Process "http://localhost:${webPort}/workspace"

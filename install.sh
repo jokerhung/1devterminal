@@ -250,42 +250,36 @@ NODE
 print_success "Permanent key is ready (view it in the local Pair Device page)"
 
 echo ""
-print_info "To start the server manually, run:"
-echo -e "  ${COLOR_GREEN}cd $INSTALL_DIR${COLOR_RESET}"
-echo -e "  ${COLOR_GREEN}npm run dev:local${COLOR_RESET}"
+print_info "Starting 9Remote with npm run dev:local..."
+WEB_PORT=2208
+npm run dev:local &
+SERVER_PID=$!
+trap 'kill $SERVER_PID 2>/dev/null' INT TERM
+
+print_info "Waiting for the server to be ready..."
+READY=0
+for _ in $(seq 1 120); do
+    if ! kill -0 $SERVER_PID 2>/dev/null; then
+        print_error "Server exited unexpectedly"
+        exit 1
+    fi
+    if curl -s -o /dev/null "http://localhost:$WEB_PORT"; then
+        READY=1
+        break
+    fi
+    sleep 1
+done
+
+if [ "$READY" != "1" ]; then
+    print_warning "Server did not respond in time, links below may not be available yet"
+fi
+
 echo ""
 print_info "Access the web interface at:"
-echo -e "  ${COLOR_GREEN}http://localhost:2208/workspace${COLOR_RESET}"
-if [ "$LOCAL_IP" != "localhost" ]; then
-    echo -e "  ${COLOR_GREEN}http://$LOCAL_IP:2208/workspace${COLOR_RESET} (LAN access)"
+echo -e "  ${COLOR_GREEN}http://localhost:$WEB_PORT/workspace${COLOR_RESET}"
+if [ -n "$LOCAL_IP" ] && [ "$LOCAL_IP" != "localhost" ]; then
+    echo -e "  ${COLOR_GREEN}http://$LOCAL_IP:$WEB_PORT/workspace${COLOR_RESET} (LAN access)"
 fi
 echo ""
-print_info "For remote access, use Cloudflare Tunnel:"
-echo -e "  ${COLOR_GREEN}cloudflared tunnel --url http://localhost:2208${COLOR_RESET}"
-echo ""
-
-# Ask if user wants to start now
-REPLY=""
-if [ -t 0 ]; then
-    read -p "Would you like to start 9Remote now? (y/N): " -n 1 -r
-fi
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Starting 9Remote in new terminal..."
-    if [[ "$OSTYPE" == "linux-gnu"* ]] && check_command systemctl && systemctl --user is-enabled 9remote.service &>/dev/null; then
-        systemctl --user start 9remote.service
-        print_success "9Remote service started"
-        print_info "Check status: systemctl --user status 9remote"
-        sleep 8
-        if check_command xdg-open; then
-            xdg-open "http://localhost:2208/workspace" 2>/dev/null
-        fi
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        osascript -e "tell application \"Terminal\" to do script \"cd '$INSTALL_DIR' && npm run dev:local\"" 2>/dev/null
-        sleep 8
-        open "http://localhost:2208/workspace" 2>/dev/null
-    else
-        print_info "Starting in current terminal..."
-        npm run dev:local
-    fi
-fi
+print_info "Press Ctrl+C to stop the server"
+wait $SERVER_PID
