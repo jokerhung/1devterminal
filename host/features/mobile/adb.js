@@ -34,7 +34,7 @@ function sdkCandidates() {
 export function findAdb() {
   if (cachedAdb !== undefined && (cachedAdb || Date.now() - probedAt < SDK_SETUP.reprobeMs)) return cachedAdb;
   probedAt = Date.now();
-  const probe = spawnSync(process.platform === "win32" ? "where" : "which", ["adb"], { encoding: "utf8" });
+  const probe = spawnSync(process.platform === "win32" ? "where" : "which", ["adb"], { encoding: "utf8", windowsHide: true });
   if (probe.status === 0) {
     const first = probe.stdout.split("\n")[0]?.trim();
     if (first) { cachedAdb = first; return cachedAdb; }
@@ -56,7 +56,7 @@ export function isAvailable() {
 function run(args, opts = {}) {
   const adb = findAdb();
   if (!adb) throw new Error("adb not found — install Android platform-tools");
-  return spawnSync(adb, args, { encoding: "utf8", timeout: ADB_TIMEOUTS.command, ...opts });
+  return spawnSync(adb, args, { encoding: "utf8", timeout: ADB_TIMEOUTS.command, ...opts, windowsHide: true });
 }
 
 function runOrThrow(args, opts) {
@@ -71,7 +71,7 @@ function runOrThrow(args, opts) {
 async function runAsync(args, opts = {}) {
   const adb = findAdb();
   if (!adb) throw new Error("adb not found — install Android platform-tools");
-  const { stdout } = await execFileAsync(adb, args, { timeout: ADB_TIMEOUTS.command, ...opts });
+  const { stdout } = await execFileAsync(adb, args, { timeout: ADB_TIMEOUTS.command, ...opts, windowsHide: true });
   return stdout;
 }
 
@@ -183,7 +183,7 @@ export async function hasAbstractSocket(serial, name) {
 export function spawnShell(serial, args) {
   const adb = findAdb();
   if (!adb) throw new Error("adb not found");
-  return spawn(adb, ["-s", serial, "shell", ...args], { stdio: ["ignore", "pipe", "pipe"] });
+  return spawn(adb, ["-s", serial, "shell", ...args], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 }
 
 /** Physical screen size in px — reported to the client, not used for input. */

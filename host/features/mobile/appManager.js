@@ -22,7 +22,7 @@ function adb(serial, args, opts = {}) {
   const bin = findAdb();
   if (!bin) throw new Error("adb not found");
   return spawnSync(bin, ["-s", serial, ...args], {
-    encoding: "utf8", timeout: ADB_TIMEOUTS.command, ...opts
+    encoding: "utf8", timeout: ADB_TIMEOUTS.command, ...opts, windowsHide: true
   });
 }
 
@@ -43,7 +43,7 @@ async function adbAsync(serial, args, opts = {}) {
   const bin = findAdb();
   if (!bin) throw new Error("adb not found");
   const { stdout } = await execFileAsync(bin, ["-s", serial, ...args], {
-    timeout: ADB_TIMEOUTS.command, maxBuffer: 8 * 1024 * 1024, ...opts
+    timeout: ADB_TIMEOUTS.command, maxBuffer: 8 * 1024 * 1024, ...opts, windowsHide: true
   });
   return stdout;
 }
@@ -110,7 +110,7 @@ function packageOfApk(apkPath) {
     for (const version of fs.readdirSync(buildTools).sort().reverse()) {
       const bin = path.join(buildTools, version, exe);
       if (!fs.existsSync(bin)) continue;
-      const r = spawnSync(bin, ["dump", "packagename", apkPath], { encoding: "utf8", timeout: 15_000 });
+      const r = spawnSync(bin, ["dump", "packagename", apkPath], { encoding: "utf8", timeout: 15_000, windowsHide: true });
       const name = r.stdout?.trim().split("\n")[0];
       if (r.status === 0 && name && PACKAGE_RE.test(name)) return name;
     }
@@ -166,7 +166,7 @@ const KEYCODE_WAKEUP = 224;
 export function sleepDevice(serial) {
   const bin = findAdb();
   if (!bin) return;
-  execFile(bin, ["-s", serial, "shell", "input", "keyevent", String(KEYCODE_SLEEP)], () => {});
+  execFile(bin, ["-s", serial, "shell", "input", "keyevent", String(KEYCODE_SLEEP)], { windowsHide: true }, () => {});
 }
 
 /** Wake before streaming, so the first frame is not of a black screen. */
@@ -174,7 +174,7 @@ export async function wakeDevice(serial) {
   const bin = findAdb();
   if (!bin) return;
   try {
-    await execFileAsync(bin, ["-s", serial, "shell", "input", "keyevent", String(KEYCODE_WAKEUP)], { timeout: 5000 });
+    await execFileAsync(bin, ["-s", serial, "shell", "input", "keyevent", String(KEYCODE_WAKEUP)], { timeout: 5000, windowsHide: true });
   } catch { /* the stream still works on a device that refused to wake */ }
 }
 
@@ -196,7 +196,7 @@ export function screenshot(serial) {
   const bin = findAdb();
   if (!bin) throw new Error("adb not found");
   const r = spawnSync(bin, ["-s", serial, "exec-out", "screencap", "-p"], {
-    encoding: "buffer", timeout: 30_000, maxBuffer: 64 * 1024 * 1024
+    encoding: "buffer", timeout: 30_000, maxBuffer: 64 * 1024 * 1024, windowsHide: true
   });
   if (r.status !== 0 || !r.stdout?.length) throw new Error("Screenshot failed");
   return r.stdout;

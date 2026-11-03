@@ -57,7 +57,7 @@ export class LogcatStream {
     // -T gives a short backlog so an opened panel is not blank; threadtime
     // carries pid and level, which the filters below need.
     this._proc = spawn(bin, ["-s", this.serial, "logcat", "-v", "threadtime", "-T", String(LOGCAT.backlogLines)], {
-      stdio: ["ignore", "pipe", "ignore"]
+      stdio: ["ignore", "pipe", "ignore"], windowsHide: true
     });
     this._proc.stdout.on("data", (buf) => this._onData(buf));
     this._proc.on("exit", () => { if (!this.closed) this.close(); });
@@ -121,7 +121,7 @@ async function pidsOf(serial, packageName) {
   const bin = findAdb();
   if (!bin) return null;
   try {
-    const { stdout } = await execFileAsync(bin, ["-s", serial, "shell", "pidof", packageName], { timeout: 5000 });
+    const { stdout } = await execFileAsync(bin, ["-s", serial, "shell", "pidof", packageName], { timeout: 5000, windowsHide: true });
     const pids = stdout.trim().split(/\s+/).map(Number).filter(Number.isInteger);
     // Empty set would filter everything out; null means "no pid filter yet".
     return pids.length ? new Set(pids) : null;

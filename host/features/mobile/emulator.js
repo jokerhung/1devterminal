@@ -33,7 +33,7 @@ export function findEmulator() {
   if (cachedEmulator !== undefined && (cachedEmulator || Date.now() - probedAt < SDK_SETUP.reprobeMs)) return cachedEmulator;
   probedAt = Date.now();
   const exe = process.platform === "win32" ? "emulator.exe" : "emulator";
-  const probe = spawnSync(process.platform === "win32" ? "where" : "which", ["emulator"], { encoding: "utf8" });
+  const probe = spawnSync(process.platform === "win32" ? "where" : "which", ["emulator"], { encoding: "utf8", windowsHide: true });
   if (probe.status === 0) {
     const first = probe.stdout.split("\n")[0]?.trim();
     if (first) { cachedEmulator = first; return cachedEmulator; }
@@ -68,7 +68,7 @@ function parseAvdList(out) {
 export function listAvds() {
   const bin = findEmulator();
   if (!bin) return [];
-  const r = spawnSync(bin, ["-list-avds"], { encoding: "utf8", timeout: ADB_TIMEOUTS.command });
+  const r = spawnSync(bin, ["-list-avds"], { encoding: "utf8", timeout: ADB_TIMEOUTS.command, windowsHide: true });
   if (r.status !== 0) return [];
   return parseAvdList(r.stdout);
 }
@@ -77,7 +77,7 @@ export async function listAvdsAsync() {
   const bin = findEmulator();
   if (!bin) return [];
   try {
-    const { stdout } = await execFileAsync(bin, ["-list-avds"], { timeout: ADB_TIMEOUTS.command });
+    const { stdout } = await execFileAsync(bin, ["-list-avds"], { timeout: ADB_TIMEOUTS.command, windowsHide: true });
     return parseAvdList(stdout);
   } catch { return []; }
 }
@@ -85,7 +85,7 @@ export async function listAvdsAsync() {
 function avdNameOf(serial) {
   const adb = findAdb();
   if (!adb) return null;
-  const r = spawnSync(adb, ["-s", serial, "emu", "avd", "name"], { encoding: "utf8", timeout: 3000 });
+  const r = spawnSync(adb, ["-s", serial, "emu", "avd", "name"], { encoding: "utf8", timeout: 3000, windowsHide: true });
   if (r.status !== 0) return null;
   return r.stdout.split("\n").map((l) => l.trim()).find((l) => l && l !== "OK") || null;
 }
@@ -94,7 +94,7 @@ export async function avdNameOfAsync(serial) {
   const adb = findAdb();
   if (!adb) return null;
   try {
-    const { stdout } = await execFileAsync(adb, ["-s", serial, "emu", "avd", "name"], { timeout: 3000 });
+    const { stdout } = await execFileAsync(adb, ["-s", serial, "emu", "avd", "name"], { timeout: 3000, windowsHide: true });
     return stdout.split("\n").map((l) => l.trim()).find((l) => l && l !== "OK") || null;
   } catch { return null; }
 }
@@ -164,7 +164,7 @@ async function isBootCompleted(serial) {
   const adb = findAdb();
   if (!adb) return false;
   try {
-    const { stdout } = await execFileAsync(adb, ["-s", serial, "shell", "getprop", "sys.boot_completed"], { timeout: 4000 });
+    const { stdout } = await execFileAsync(adb, ["-s", serial, "shell", "getprop", "sys.boot_completed"], { timeout: 4000, windowsHide: true });
     return stdout.trim() === "1";
   } catch { return false; }
 }
@@ -265,6 +265,7 @@ async function bootOnce(bin, avdName, onProgress, opts, gpuArgs) {
   // -qemu must come last: arguments after it are passed to QEMU directly.
   const memArgs = QEMU_MEMORY_ARGS(avdRamSizeMb(avdName));
   const child = spawn(bin, ["-avd", avdName, ...args, ...gpu, ...memArgs], {
+    windowsHide: true,
     detached: true,
     stdio: ["ignore", "ignore", "pipe"]
   });
@@ -313,7 +314,7 @@ export async function stopAvd(serial) {
   const adb = findAdb();
   if (!adb) throw new Error("adb not found");
   const avdName = await avdNameOfAsync(serial);
-  try { await execFileAsync(adb, ["-s", serial, "emu", "kill"], { timeout: 10_000 }); } catch { /* already gone */ }
+  try { await execFileAsync(adb, ["-s", serial, "emu", "kill"], { timeout: 10_000, windowsHide: true }); } catch { /* already gone */ }
 
   const deadline = Date.now() + EMULATOR.shutdownTimeoutMs;
   while (Date.now() < deadline) {
