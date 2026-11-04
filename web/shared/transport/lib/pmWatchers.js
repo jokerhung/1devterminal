@@ -1,4 +1,4 @@
-import { ADAPTER_STATE, NET_RECOVERY, RESUME_PROBE_TIMEOUT_MS, RESUME_PROBE_SKIP_HIDDEN_MS, RTC_RESTART, RTC_HEARTBEAT_LEGACY_TIMEOUT_MS } from "@/shared/constants/transport";
+import { ADAPTER_STATE, NET_RECOVERY, WS_RESUME_STALE_MS, RESUME_PROBE_TIMEOUT_MS, RESUME_PROBE_SKIP_HIDDEN_MS, RTC_RESTART, RTC_HEARTBEAT_LEGACY_TIMEOUT_MS } from "@/shared/constants/transport";
 import { isWsZombie } from "../wsZombie";
 import { debugLog } from "@/shared/utils/debugLog";
 import { termLog } from "@/shared/utils/termLog";
@@ -30,7 +30,9 @@ export function kickWsZombie(pm, reason = "stale") {
   const wsZombie = ws?.ready && isWsZombie({
     ready: true,
     lastInboundAt: wsLastAlive,
-    now: Date.now()
+    now: Date.now(),
+    // Back from the background: one missed heartbeat is already proof, no need to wait out WS_ZOMBIE_MS.
+    ...(reason === "resume" ? { thresholdMs: WS_RESUME_STALE_MS } : {})
   });
   if (ws) {
     const lb = ws.lastInboundAt ?? 0;

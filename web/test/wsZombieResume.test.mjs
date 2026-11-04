@@ -81,6 +81,17 @@ await test("isWsZombie: ready=false short-circuits → false (not PM's job)", ()
   assert.equal(isWsZombie({ ready: false, lastInboundAt: 1000, now: 1000 + 60_000 }), false);
 });
 
+await test("isWsZombie: a custom threshold overrides the default", () => {
+  assert.equal(isWsZombie({ lastInboundAt: 1000, now: 1000 + 14_000, thresholdMs: 13_000 }), true);
+  assert.equal(isWsZombie({ lastInboundAt: 1000, now: 1000 + 12_000, thresholdMs: 13_000 }), false);
+  // Same silence is still healthy under the default 30s threshold.
+  assert.equal(isWsZombie({ lastInboundAt: 1000, now: 1000 + 14_000 }), false);
+});
+
+await test("source: resume uses the shorter stale threshold, other reasons keep the default", () => {
+  assert.match(PM_SRC, /reason === "resume" \? \{ thresholdMs: WS_RESUME_STALE_MS \}/);
+});
+
 // ---------------------------------------------------------------------------
 // Layer 2 — source contract: PM must wire the helper + track inbound.
 // ---------------------------------------------------------------------------

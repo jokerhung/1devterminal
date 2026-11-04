@@ -13,13 +13,14 @@ import { WS_ZOMBIE_MS } from "@/shared/constants/transport";
  * @param {boolean} [opts.ready=true]  — adapter's ready flag (open bus).
  * @param {number}  [opts.lastInboundAt=0] — Date.now() of last ws-source inbound.
  * @param {number}  opts.now           — current Date.now().
+ * @param {number}  [opts.thresholdMs=WS_ZOMBIE_MS] — silence that counts as zombie.
  * @returns {boolean}
  */
-export function isWsZombie({ ready = true, lastInboundAt = 0, now } = {}) {
+export function isWsZombie({ ready = true, lastInboundAt = 0, now, thresholdMs = WS_ZOMBIE_MS } = {}) {
   // An openly-down bus is handled by the normal retry path — the zombie probe
   // only targets sockets that still look alive (the dangerous silent case).
   if (!ready) return false;
   // No inbound recorded since PM constructed → nothing ever flowed → suspect.
   if (!lastInboundAt) return true;
-  return (now - lastInboundAt) >= WS_ZOMBIE_MS;
+  return (now - lastInboundAt) >= thresholdMs;
 }

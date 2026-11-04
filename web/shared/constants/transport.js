@@ -188,6 +188,12 @@ export const NET_RECOVERY = {
 // a heartbeat it was always going to send late.
 export const WS_ZOMBIE_MS = 30000;
 
+// Same check at the moment the app returns to the foreground: the host pings every
+// 12s, so a visible tab with nothing inbound for one ping interval (+1s margin) has
+// lost its socket. Waiting the full WS_ZOMBIE_MS left the user staring at a dead
+// connection for up to 30s after switching back from another app.
+export const WS_RESUME_STALE_MS = 13000;
+
 // WS half-open recovery — pings can keep arriving on a socket whose send
 // direction is dead (NAT rebind); ws.bufferedAmount stuck > 0 across ticks
 // exposes it. Two ticks, and only a fully frozen buffer counts (a slow but
