@@ -4,6 +4,7 @@ import { showBanner } from "../utils/tui.js";
 import { apiGet, apiPost, isServerRunning } from "../core/localApi.js";
 import { cmdBrowser } from "./browserCmd.js";
 import { WORKER_URL } from "../config.js";
+import { isAutoStartEnabled, setAutoStart } from "../utils/autostart.js";
 
 // Headless CLI: drive the host over its localhost API without the interactive TUI.
 // Reuses existing endpoints so server-only (SSH, no TTY) hosts can manage keys/devices.
@@ -17,6 +18,7 @@ const HELP_ROWS = [
   ["9remote devices", "List approved devices."],
   ["9remote auto-approve <on|off>", "Toggle device auto-approve."],
   ["9remote approve <socketId>", "Approve a pending device."],
+  ["9remote autostart <on|off|status>", "Start 9Remote when you log in to this OS."],
   ["9remote help", "Show this help."],
 ];
 
@@ -99,6 +101,18 @@ async function cmdApprove(socketId) {
   console.log(data?.ok ? chalk.green("\n✓ Approved\n") : chalk.red("\n✗ Approve failed (invalid socketId?)\n"));
 }
 
+// Touches OS login items only, so it works with the server stopped.
+async function cmdAutostart(value) {
+  const state = (on) => (on ? chalk.green("ON") : chalk.gray("OFF"));
+  if (value === "status") {
+    console.log(chalk.white("\nAutostart: ") + state(await isAutoStartEnabled()) + "\n");
+    return;
+  }
+  if (value !== "on" && value !== "off") { console.log(chalk.red("\n✗ Usage: 9remote autostart <on|off|status>\n")); return; }
+  if (!(await setAutoStart(value === "on"))) { console.log(chalk.red("\n✗ Autostart change failed\n")); return; }
+  console.log(chalk.green("\n✓ Autostart: ") + state(value === "on") + "\n");
+}
+
 // Returns true if the arg was a headless command (already handled), false otherwise.
 export async function runHeadlessCommand(argv) {
   const cmd = argv[2];
@@ -111,6 +125,7 @@ export async function runHeadlessCommand(argv) {
     case "browser": await cmdBrowser(args); return true;
     case "auto-approve": await cmdAutoApprove(args[0]); return true;
     case "approve": await cmdApprove(args[0]); return true;
+    case "autostart": await cmdAutostart(args[0]); return true;
     default: return false;
   }
 }
