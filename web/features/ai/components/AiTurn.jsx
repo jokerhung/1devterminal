@@ -8,7 +8,9 @@ import { AiQuestionCard } from "./cards/AiQuestionCard";
 import { AiThinkingBlock } from "./cards/AiThinkingBlock";
 import { renderToolCard } from "./cards/toolCards";
 import { buildTurnRows, splitTurnBlocks } from "../lib/turnRows";
-import MarkdownBody from "@/shared/components/ui/MarkdownBody";
+import MarkdownBody, { MARKDOWN_COMPONENTS } from "@/shared/components/ui/MarkdownBody";
+import { useTerminalStore } from "@/shared/stores/terminalStore";
+import { parseLocalFileLink } from "../lib/localFileLink";
 import { Loader2 } from "@/shared/components/ui/Icon";
 
 // How often the compaction row's clock ticks. One second: it prints whole seconds, so a
@@ -134,13 +136,31 @@ function CompactingClock() {
   return <span className="text-text-muted/70 tabular-nums">{formatSeconds(now - startedAt)}</span>;
 }
 
-function ProseRow({ content, isLive }) {
+function ProseRow({ content, isLive, workspacePath }) {
   const text = useStreamedText(content, isLive);
+  const openEditorFile = useTerminalStore((s) => s.openEditorFile);
+  // A link naming a host file opens in the editor; anything else stays an ordinary link.
+  const components = useMemo(() => ({
+    a: ({ children, href, node: _node, ...props }) => {
+      const file = parseLocalFileLink(href, workspacePath);
+      if (!file) return MARKDOWN_COMPONENTS.a({ children, href, ...props });
+      return (
+        <a
+          href={href}
+          className="text-brand-500 hover:underline wrap-anywhere cursor-pointer"
+          title={file.path}
+          onClick={(e) => { e.preventDefault(); openEditorFile(file.path, { line: file.line, column: file.column }); }}
+        >
+          {children}
+        </a>
+      );
+    }
+  }), [workspacePath, openEditorFile]);
   return (
     // wrap-anywhere, not break-words: only `anywhere` shrinks min-content, so a path
     // with no space to break on wraps instead of widening the column into a scrollbar.
     <div className="text-sm leading-relaxed text-text py-1.5 wrap-anywhere">
-      <MarkdownBody content={text} />
+      <MarkdownBody content={text} components={components} />
       {isLive && <span className="inline-block w-1.5 h-3.5 bg-brand-500 animate-pulse ml-1 align-middle" />}
     </div>
   );
@@ -165,7 +185,7 @@ export const AiTurn = memo(function AiTurn({
           // Prose sits outside the rail: it is the agent talking to the reader, not a
           // step it took, and indenting it would read as one more thing it did.
           if (b.row.kind === "prose") {
-            return <ProseRow key={b.key} content={b.row.content} isLive={b.row.isLive} />;
+            return <ProseRow key={b.key} content={b.row.content} isLive={b.row.isLive} workspacePath={workspacePath} />;
           }
           if (b.row.kind === "notice") {
             return <NoticeRow key={b.key} notice={b.row.notice} />;
