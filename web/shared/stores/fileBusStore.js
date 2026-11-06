@@ -14,7 +14,9 @@ const normResolve = (resolve) => (res) => {
 // `getLiveBus` is the subscription door: unlike one-shot requests it must attach
 // the moment the bus object exists (socket.io allows `on` before connect), so a
 // watcher registering pre-connect never misses the first events.
-export function makeFileBus(getBus, getProtocol = () => null, getLiveBus = getBus) {
+// `getHttpOrigin` names where this host answers plain HTTP (for direct /dl links);
+// null when unknown, which sends callers down the in-socket path instead.
+export function makeFileBus(getBus, getProtocol = () => null, getLiveBus = getBus, getHttpOrigin = () => null) {
   return {
   getSystemInfo: () => new Promise((resolve) => {
     const bus = getBus();
@@ -310,6 +312,33 @@ export function makeFileBus(getBus, getProtocol = () => null, getLiveBus = getBu
     });
   },
 
+  // Mint a one-shot browser download URL. `fallback: true` means "no direct route
+  // available" (no origin, old host, timeout) — a real refusal comes back without it.
+  downloadLink: (filePath) => new Promise((resolve) => {
+    const bus = getBus();
+    const origin = getHttpOrigin();
+    if (!bus || !origin) return resolve({ success: false, fallback: true, error: "No direct route" });
+    const timer = setTimeout(() => resolve({ success: false, fallback: true, error: "Host has no direct download" }), FILE_REQUEST_TIMEOUT_MS);
+    bus.emit("download:link", { filePath }, (res) => {
+      clearTimeout(timer);
+      resolve(res?.success ? { ...res, url: origin + res.url } : { ...res, success: false });
+    });
+  }),
+
+  getFileLimits: () => new Promise((resolve) => {
+    const bus = getBus();
+    if (!bus) return resolve({ success: false, error: "Not connected" });
+    const timer = setTimeout(() => resolve({ success: false, error: "Host does not support file limits" }), FILE_REQUEST_TIMEOUT_MS);
+    bus.emit("fileLimits:get", {}, (res) => { clearTimeout(timer); resolve(res); });
+  }),
+
+  setFileLimits: (patch) => new Promise((resolve) => {
+    const bus = getBus();
+    if (!bus) return resolve({ success: false, error: "Not connected" });
+    const timer = setTimeout(() => resolve({ success: false, error: "Host does not support file limits" }), FILE_REQUEST_TIMEOUT_MS);
+    bus.emit("fileLimits:set", patch, (res) => { clearTimeout(timer); resolve(res); });
+  }),
+
   previewStart: (filePath) => new Promise((resolve) => {
     const bus = getBus();
     if (!bus) return resolve({ success: false, error: "Not connected" });
@@ -336,4 +365,18 @@ const getMainLiveBus = () => {
   return state.busRef?.current || state.bus;
 };
 
-export const useFileBusStore = create(() => makeFileBus(getMainBus, getMainProtocol, getMainLiveBus));
+// The origin the main connection actually talks to. An http link from an https page
+// is a blocked download (mixed content), so that combination falls back to the socket.
+const getMainHttpOrigin = () => {
+  const { endpoint } = useConnectionStore.getState();
+  try {
+    const u = new URL(endpoint);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (u.protocol === "http:" && window.location.protocol === "https:") return null;
+    return u.origin;
+  } catch {
+    return null;
+  }
+};
+
+export const useFileBusStore = create(() => makeFileBus(getMainBus, getMainProtocol, getMainLiveBus, getMainHttpOrigin));

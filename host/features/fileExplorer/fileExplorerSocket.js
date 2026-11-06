@@ -3,6 +3,8 @@ import { setupFileHandlers } from "./handlers/FileHandler.js";
 import { setupGitHandlers } from "./handlers/GitHandler.js";
 import { TransferManager } from "./transfer/TransferManager.js";
 import { setupPreviewHandlers } from "./previewServer.js";
+import { mintDownloadLink } from "./downloadLinks.js";
+import { getFileLimits, setFileLimits } from "./fileLimits.js";
 
 // Per-socket file explorer handlers (called from the single connection handler).
 export function setupFileExplorerHandlers(socket) {
@@ -23,6 +25,10 @@ function setupTransferHandlers(socket) {
   socket.on("download:start", (payload, cb) => tx.startDownload(payload, cb));
   socket.on("streamMedia:start", (payload, cb) => tx.startStreamMedia(payload, cb));
   socket.on("download:cancel", (payload, cb) => tx.cancelDownload(payload, cb));
+  socket.on("download:link", ({ filePath } = {}, cb) => cb?.(mintDownloadLink(filePath)));
+  socket.on("fileLimits:get", (_payload, cb) => cb?.({ success: true, limits: getFileLimits() }));
+  // Not in the workspace guard's allow-lists, so scoped devices are refused by default.
+  socket.on("fileLimits:set", (payload, cb) => cb?.(setFileLimits(payload)));
 
   // Binary frames arrive here from BOTH transports: WS via socket.io onAny,
   // RTC via ProtocolManager._onBinary routing.

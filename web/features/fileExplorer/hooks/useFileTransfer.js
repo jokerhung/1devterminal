@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { dataTransferToItems } from "@/features/fileExplorer/lib/dataTransfer";
 import { vibrate } from "@/shared/utils/vibration";
+import { tryDirectDownload } from "@/features/fileExplorer/lib/directDownload";
 
 // Upload (drop / paste) and download plumbing for the mobile explorer: progress
 // state, the overwrite prompt, and drag-over highlighting.
@@ -65,11 +66,17 @@ export function useFileTransfer({ fileBus, currentPath, isBrowsing, onDone, onEr
   // running would share the progress bar, and whichever finished first would
   // clear it for both.
   const downloadSeqRef = useRef(0);
-  const handleDownload = useCallback((file) => {
+  const handleDownload = useCallback(async (file) => {
     if (!fileBus.downloadFile) return;
     const seq = ++downloadSeqRef.current;
     const isCurrent = () => seq === downloadSeqRef.current;
     setDownloadState({ name: file.name, ratio: 0 });
+    const direct = await tryDirectDownload(fileBus, file);
+    if (direct) {
+      if (isCurrent()) setDownloadState(null);
+      if (direct.error) onError?.(direct.error);
+      return;
+    }
     fileBus.downloadFile(file.path, {
       onSave: (blob, meta) => {
         const a = document.createElement("a");

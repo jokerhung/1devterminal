@@ -16,9 +16,12 @@ import { dataTransferToItems } from "@/features/fileExplorer/lib/dataTransfer";
 import { ConflictModal } from "./FileExplorerModals";
 import { isMac } from "@/features/terminal/constants/shortcuts";
 import { addToGitignore } from "../lib/gitignore.js";
+import { tryDirectDownload } from "../lib/directDownload.js";
 
 const LONG_PRESS_MS = 500;
 const DRAG_MIME = "application/x-file-paths";
+
+let downloadSeq = 0;
 
 // Safari lacks webkitdirectory support.
 const dirPickerSupported = () =>
@@ -66,6 +69,7 @@ export default function ExplorerPanel({
   const [clipboard, setClipboard] = useState(null);
   const [upload, setUpload] = useState(null);
   const [uploadConflict, setUploadConflict] = useState(null);
+  const [download, setDownload] = useState(null); // { name, ratio, error? }
   // cursorPath is keyboard focus; anchorRef anchors shift-selection ranges.
   const [cursorPath, setCursorPath] = useState(null);
 
@@ -151,6 +155,31 @@ export default function ExplorerPanel({
       await navigator.clipboard.writeText(text);
     } catch {}
   }, []);
+
+  // Folders arrive as a streamed .zip; only the newest download owns the banner.
+  const handleDownload = useCallback(async (file) => {
+    const seq = ++downloadSeq;
+    const isCurrent = () => seq === downloadSeq;
+    setDownload({ name: file.name, ratio: 0 });
+    // Direct link first: the browser streams to disk with no size ceiling from memory.
+    const direct = await tryDirectDownload(fileBus, file);
+    if (direct?.started) { if (isCurrent()) setDownload(null); return; }
+    if (direct?.error) { if (isCurrent()) setDownload({ name: file.name, ratio: 0, error: direct.error }); return; }
+    fileBus.downloadFile(file.path, {
+      onSave: (blob, meta) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = meta?.fileName || file.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        if (isCurrent()) setDownload(null);
+      },
+      onProgress: (ratio) => { if (isCurrent()) setDownload((p) => (p ? { ...p, ratio } : p)); },
+      onError: (e) => { if (isCurrent()) setDownload({ name: file.name, ratio: 0, error: e.message || "Download failed" }); }
+    });
+  }, [fileBus]);
 
   const openContextMenu = useCallback((e, file) => {
     e.preventDefault();
@@ -561,6 +590,9 @@ export default function ExplorerPanel({
     }
     if (!many) {
       items.push({ label: "Reveal in OS", icon: "FolderOpen", action: () => fileBus.revealInOS(file.path) });
+      if (fileBus.downloadFile) {
+        items.push({ label: t("common.download"), icon: "Download", action: () => handleDownload(file) });
+      }
       items.push({
         label: "Rename",
         icon: "Pencil",
@@ -752,6 +784,25 @@ export default function ExplorerPanel({
             </>
           ) : (
             <span>{t("fileExplorer.uploadingCount", { n: Math.min(upload.done + 1, upload.total), total: upload.total })}</span>
+          )}
+        </div>
+      )}
+      {download && (
+        <div className="absolute bottom-0 inset-x-0 bg-surface-2 border-t border-border px-3 py-1.5 pb-safe text-[11px] text-text-muted flex items-center gap-2">
+          {download.error ? (
+            <>
+              <span className="text-danger truncate">{download.error}</span>
+              <button type="button" onClick={() => setDownload(null)} className="ml-auto underline hover:text-text">
+                {t("common.close")}
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="truncate flex-1">{t("menu.downloading")}: {download.name}</span>
+              <div className="w-16 h-1.5 bg-surface-3 rounded-full overflow-hidden flex-shrink-0">
+                <div className="h-full bg-brand-500 transition-all" style={{ width: `${Math.round(download.ratio * 100)}%` }} />
+              </div>
+            </>
           )}
         </div>
       )}

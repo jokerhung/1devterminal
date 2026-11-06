@@ -9,6 +9,15 @@ export const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 5MB previewable media limit (v
 export const MAX_IMAGE_RAW_SIZE = 20 * 1024 * 1024; // raw image input cap (pre-scale)
 export const MAX_IMAGE_SCALED_SIZE = 3 * 1024 * 1024; // output data URL cap (post-scale)
 export const IMAGE_SCALE_MAX_DIM = 1600; // max width/height after downscale
+// User-tunable caps (settings.json → fileLimits). Preview governs streamed media
+// (video/audio); download governs a single file served over the direct /dl link.
+export const FILE_LIMIT_DEFAULTS_MB = { maxPreviewMB: 500, maxDownloadMB: 500 };
+export const FILE_LIMIT_BOUNDS_MB = { min: 1, max: 102_400 };
+// Direct download links: minted over the authenticated socket, then fetched by the
+// browser itself. Short TTL; reusable inside it so a browser retry/resume still works.
+export const DOWNLOAD_LINK_TTL_MS = 2 * 60 * 1000;
+export const MAX_DOWNLOAD_LINKS = 256;
+export const DOWNLOAD_ROUTE_PREFIX = "/dl/";
 export const MAX_SEARCH_RESULTS = 200;
 export const MAX_MATCHES_PER_FILE = 10;
 // Context window around each match — a minified one-liner would otherwise ship megabytes per match.

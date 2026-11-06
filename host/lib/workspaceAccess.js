@@ -14,14 +14,15 @@ const SESSION_EVENTS = new Set([
 ]);
 const READ_EVENTS = new Set([
   "getSessions", "getWorkspaces", "getGroups", "getShells", "getAgentClis", "getSystemInfo",
-  "getStatusState", "getNotificationState", "getSessionTasks", "ai:list", "caps", "visibilityChange"
+  "getStatusState", "getNotificationState", "getSessionTasks", "ai:list", "caps", "visibilityChange",
+  "fileLimits:get"
 ]);
 const PATH_EVENTS = {
   getFiles: ["dirPath"], getFileTree: ["dirPath"], watchDir: ["dirPath"], unwatchDir: ["dirPath"],
   searchFiles: ["workspace"], searchInFiles: ["workspace"], replaceInFiles: ["workspace"],
   readFile: ["filePath"], readMedia: ["filePath"], readImage: ["filePath"], writeFile: ["filePath"],
   createItem: ["itemPath"], deleteItem: ["itemPath"], copyItem: ["srcPath", "destPath"],
-  renameItem: ["oldPath", "newPath"], "download:start": ["filePath"], "streamMedia:start": ["filePath"],
+  renameItem: ["oldPath", "newPath"], "download:start": ["filePath"], "download:link": ["filePath"], "streamMedia:start": ["filePath"],
   "upload:start": ["targetDir"], getAgentSessions: ["cwd"], deleteAgentSession: ["cwd"],
   "ai:files": ["workspace"]
 };

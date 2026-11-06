@@ -5,7 +5,7 @@ import {
   X, ChevronLeft, Settings, Palette, Terminal, Bell, Sparkles, Globe,
   Download, RefreshCw, LogOut, Loader2, Monitor, Type,
   Sun, Moon, Keyboard, PanelRight, ChevronRight, Zap, Image, Bot,
-  Power, Lock, PowerOff, Mic, Bug, Copy, Trash2, Link2
+  Power, Lock, PowerOff, Mic, Bug, Copy, Trash2, Link2, FolderOpen
 } from "@/shared/components/ui/Icon";
 import { vibrate } from "@/shared/utils/vibration";
 import { useI18n } from "@/shared/i18n";
@@ -33,8 +33,9 @@ import { useHostLocalSettings } from "@/features/terminal/hooks/useAgentLocalSet
 import { useVoiceStore } from "@/shared/stores/voiceStore";
 import { useLogStore } from "@/shared/stores/logStore";
 import ConfirmDialog from "@/shared/components/ui/ConfirmDialog";
+import FileLimitsSettings from "@/features/fileExplorer/components/FileLimitsSettings";
 
-const ICONS = { Settings, Palette, Terminal, Bell, Sparkles, Keyboard, Zap, PanelRight, Image, Bot, Monitor, Mic, Bug, Globe, Link2 };
+const ICONS = { Settings, Palette, Terminal, Bell, Sparkles, Keyboard, Zap, PanelRight, Image, Bot, Monitor, Mic, Bug, Globe, Link2, FolderOpen };
 
 
 /**
@@ -320,6 +321,10 @@ export default function SettingsDialog({
 
                 {renderToggles("terminal", t("menu.showButtons"))}
               </div>
+            )}
+
+            {section === "files" && (
+              <FileLimitsSettings connected={context.connected} />
             )}
 
             {section === "voice" && (

@@ -14,6 +14,7 @@ import { resolveSafePath } from "./sanitize.js";
 import { isSensitivePath } from "../pathGuard.js";
 import { getMimeType, isStreamScalableImage, isHeicFile, MAX_IMAGE_RAW_SIZE } from "../constants.js";
 import { scaleImageBuffer } from "../handlers/FileHandler.js";
+import { maxDownloadBytes, maxPreviewBytes } from "../fileLimits.js";
 
 let _idSeq = 1;
 
@@ -166,8 +167,11 @@ export class TransferManager {
         this._streamZip(downloadId, filePath);
       } else {
         if (!stat.isFile()) return cb?.({ success: false, error: "Not a file" });
-        if (stat.size > FILE_TRANSFER.maxUploadSize) {
-          return cb?.({ success: false, error: `File too large (max ${FILE_TRANSFER.maxUploadSize} bytes)` });
+        // This path buffers the whole file in the client's memory, so it stays under
+        // the hard transfer cap even when the user raised the direct-link limit.
+        const cap = Math.min(maxDownloadBytes(), FILE_TRANSFER.maxDownloadSize);
+        if (stat.size > cap) {
+          return cb?.({ success: false, error: `File too large (max ${cap} bytes)` });
         }
         cb?.({ success: true, downloadId, size: stat.size, fileName: path.basename(filePath), mtime: stat.mtimeMs });
         this._streamDownload(downloadId, filePath, stat.size);
@@ -190,8 +194,9 @@ export class TransferManager {
       const stat = fs.statSync(filePath);
       if (!stat.isFile()) return cb?.({ success: false, error: "Not a file" });
       if (isStreamScalableImage(filePath)) return this._startScaledImage(filePath, stat, cb);
-      if (stat.size > FILE_TRANSFER.maxStreamMediaSize) {
-        return cb?.({ success: false, error: `File too large (max ${FILE_TRANSFER.maxStreamMediaSize} bytes)` });
+      const previewCap = maxPreviewBytes();
+      if (stat.size > previewCap) {
+        return cb?.({ success: false, error: `File too large (max ${previewCap} bytes)` });
       }
       const streamId = _idSeq++;
       cb?.({ success: true, streamId, size: stat.size, mime: getMimeType(filePath) });

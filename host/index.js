@@ -11,6 +11,7 @@ import { fileURLToPath, parse } from "url";
 import chalk from "chalk";
 
 import { createRouter, jsonOk, jsonErr } from "./lib/router.js";
+import { handleDownloadRequest } from "./features/fileExplorer/downloadLinks.js";
 import { STEP, browserFetch, PERMISSION_POLL_MS, NPM_REGISTRY_URL, hideDockIcon, MCP } from "./lib/constants.js";
 import { initLogger, createLogger } from "./lib/logger.js";
 
@@ -245,6 +246,8 @@ const ROUTES = [
     res.setHeader("Cache-Control", "no-store");
     jsonOk(res, { version });
   }},
+  // Token-in-path auth (minted over the authenticated socket), like /preview
+  { path: "/dl/*",                 method: "GET",  public: true, handler: handleDownloadRequest },
   { path: "/api/notify",           method: "POST", public: true, handler: handleNotifyPost },
   { path: "/api/notify",           method: "GET",  public: true, handler: handleNotifyGet },
 

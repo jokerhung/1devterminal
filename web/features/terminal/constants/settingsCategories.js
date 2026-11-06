@@ -11,6 +11,7 @@ export const SETTINGS_CATEGORIES = [
   { id: "system", labelKey: "menu.settingsSystem", icon: "Monitor" },
   { id: "appearance", labelKey: "menu.settingsAppearance", icon: "Palette" },
   { id: "terminal", labelKey: "menu.settingsTerminalTab", icon: "Terminal" },
+  { id: "files", labelKey: "menu.settingsFiles", icon: "FolderOpen" },
   { id: "background", labelKey: "menu.terminalBackground", icon: "Image" },
   { id: "voice", labelKey: "menu.settingsVoice", icon: "Mic" },
   ...(BROWSER_USE_UI_ENABLED ? [{ id: "browser", labelKey: "menu.settingsBrowser", icon: "Globe" }] : []),
