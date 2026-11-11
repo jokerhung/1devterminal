@@ -8,7 +8,7 @@ import { AiQuestionCard } from "./cards/AiQuestionCard";
 import { AiThinkingBlock } from "./cards/AiThinkingBlock";
 import { renderToolCard } from "./cards/toolCards";
 import { buildTurnRows, splitTurnBlocks } from "../lib/turnRows";
-import MarkdownBody, { MARKDOWN_COMPONENTS } from "@/shared/components/ui/MarkdownBody";
+import MarkdownBody, { MARKDOWN_COMPONENTS, defaultUrlTransform } from "@/shared/components/ui/MarkdownBody";
 import { useTerminalStore } from "@/shared/stores/terminalStore";
 import { parseLocalFileLink } from "../lib/localFileLink";
 import { Loader2 } from "@/shared/components/ui/Icon";
@@ -136,6 +136,11 @@ function CompactingClock() {
   return <span className="text-text-muted/70 tabular-nums">{formatSeconds(now - startedAt)}</span>;
 }
 
+// The default transform blanks `D:\x\a.md` and `file://…` (unknown scheme), which would
+// leave the link nothing to open. Only what parses as a host file is let through; every
+// other URL (javascript:, data:, …) still goes through the default sanitiser.
+const keepLocalFileUrl = (url) => (parseLocalFileLink(url, "/") ? url : defaultUrlTransform(url));
+
 function ProseRow({ content, isLive, workspacePath }) {
   const text = useStreamedText(content, isLive);
   const openEditorFile = useTerminalStore((s) => s.openEditorFile);
@@ -160,7 +165,7 @@ function ProseRow({ content, isLive, workspacePath }) {
     // wrap-anywhere, not break-words: only `anywhere` shrinks min-content, so a path
     // with no space to break on wraps instead of widening the column into a scrollbar.
     <div className="text-sm leading-relaxed text-text py-1.5 wrap-anywhere">
-      <MarkdownBody content={text} components={components} />
+      <MarkdownBody content={text} components={components} urlTransform={keepLocalFileUrl} />
       {isLive && <span className="inline-block w-1.5 h-3.5 bg-brand-500 animate-pulse ml-1 align-middle" />}
     </div>
   );

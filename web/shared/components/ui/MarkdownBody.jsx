@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useRef, useState } from "react";
-import Markdown from "react-markdown";
+import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy } from "@/shared/components/ui/Icon";
 import { vibrate } from "@/shared/utils/vibration";
@@ -21,6 +21,10 @@ const tag = (Tag, baseClass) =>
       </Tag>
     );
   };
+
+// react-markdown's default blanks any URL whose scheme is not http/https/mailto/…, which
+// includes `D:\x` and `file://` — a caller that handles such links passes its own transform.
+export { defaultUrlTransform };
 
 export const MARKDOWN_COMPONENTS = {
   h1: tag("h1", "text-xl sm:text-2xl font-bold border-b border-border-subtle pb-2 mt-5 mb-3 text-text first:mt-0"),
@@ -130,10 +134,11 @@ export const MARKDOWN_COMPONENTS = {
 // parent per token — without this the whole message is re-parsed every token, which is
 // O(content²) over one answer. `components` still arrives as a fresh object each render,
 // so it is deliberately not compared.
-const MarkdownBody = memo(function MarkdownBody({ content, components }) {
+const MarkdownBody = memo(function MarkdownBody({ content, components, urlTransform }) {
   return (
     <Markdown
       remarkPlugins={[remarkGfm]}
+      urlTransform={urlTransform}
       components={components ? { ...MARKDOWN_COMPONENTS, ...components } : MARKDOWN_COMPONENTS}
     >
       {content}
