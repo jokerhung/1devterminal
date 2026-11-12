@@ -17,7 +17,7 @@ import { createRetryLadder, shouldApplyHydrateAck } from "../lib/hydrateRetry";
 import { classifyLiveEvent, fetchedIsSafe } from "../lib/gapFill";
 import { termLog } from "@/shared/utils/termLog";
 import { RECOVER_DEBOUNCE_MS, PEEK_TIMEOUT_MS } from "@/features/terminal/constants/terminalConfig";
-import { RESOLVE_ACK_TIMEOUT_MS, PROMPT_ACK_TIMEOUT_MS, ATTACH_CHUNK_SIZE, ATTACH_CHUNK_ACK_TIMEOUT_MS } from "../constants";
+import { RESOLVE_ACK_TIMEOUT_MS, PROMPT_ACK_TIMEOUT_MS, PROMPT_RECONNECT_SETTLE_MS, ATTACH_CHUNK_SIZE, ATTACH_CHUNK_ACK_TIMEOUT_MS } from "../constants";
 import { stageAttachments } from "../lib/attachUpload";
 import { emitPromptAck } from "../lib/promptAck";
 
@@ -1370,15 +1370,31 @@ export function useAiSession({
       // the text they typed, not a path list.
       // #48: a dead-but-not-closed carrier swallows the emit silently — the ack wraps
       // it so the loss surfaces as a resendable error instead of vanishing.
+      // promptId lets the host drop a re-send of a prompt whose ack (not the prompt) was lost.
       const payload = {
         sessionId,
         message: text,
         cwd: workspacePath,
+        promptId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         ...(attachments?.length ? { attachments } : {})
       };
-      const lost = (reason) => useAiStore.getState().setPromptError(sessionId, text, reason);
-      const startedAt = Date.now();
+      const showError = (reason) => useAiStore.getState().setPromptError(sessionId, text, reason);
+      let startedAt = Date.now();
       let staged = false;
+      let reconnected = false;
+      // First ack timeout means the carrier is likely dead: reconnect once and re-send,
+      // only a second failure is shown to the user.
+      const lost = (reason) => {
+        if (reason !== "timeout" || reconnected) return showError(reason);
+        reconnected = true;
+        busRef.current?.retryNow?.("prompt-lost");
+        const timer = setTimeout(() => {
+          promptWaitersRef.current.delete(timer);
+          startedAt = Date.now();
+          send();
+        }, PROMPT_RECONNECT_SETTLE_MS);
+        promptWaitersRef.current.add(timer);
+      };
       const send = async () => {
         const current = busRef.current;
         // A pane can remain mounted while its carrier is being replaced. Keep the

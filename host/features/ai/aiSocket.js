@@ -1,4 +1,17 @@
-import { AI_SOCKET_EVENTS, ATTACH_MAX_CHUNKS, ATTACH_MAX_PENDING } from "./constants.js";
+import { AI_SOCKET_EVENTS, ATTACH_MAX_CHUNKS, ATTACH_MAX_PENDING, PROMPT_DEDUPE_TTL_MS } from "./constants.js";
+
+// promptId -> receivedAt, shared across sockets: a re-send arrives on the reconnected one.
+const seenPrompts = new Map();
+function claimPrompt(promptId) {
+  if (!promptId) return true;
+  const now = Date.now();
+  for (const [id, at] of seenPrompts) {
+    if (now - at > PROMPT_DEDUPE_TTL_MS) seenPrompts.delete(id);
+  }
+  if (seenPrompts.has(promptId)) return false;
+  seenPrompts.set(promptId, now);
+  return true;
+}
 import { globalAiManager, destroyDetachedChat } from "./aiManager.js";
 import { broadcast } from "../../transport/broadcast.js";
 import { createLogger } from "../../lib/logger.js";
@@ -408,7 +421,11 @@ export function setupAiHandlers(socket, io, manager = globalAiManager) {
     cb?.({ ok: true });
   });
 
-  socket.on(AI_SOCKET_EVENTS.PROMPT, async ({ sessionId, message, cwd, attachments }, cb) => {
+  socket.on(AI_SOCKET_EVENTS.PROMPT, async ({ sessionId, message, cwd, attachments, promptId }, cb) => {
+    if (!claimPrompt(promptId)) {
+      logger.info(`[ai] duplicate prompt ${promptId} ignored`);
+      return cb?.({ ok: true, duplicate: true });
+    }
     try {
       if (Array.isArray(attachments)) {
         attachments = attachments.map((a) => {
@@ -450,6 +467,7 @@ export function setupAiHandlers(socket, io, manager = globalAiManager) {
       const res = session.sendPrompt(message, attachments);
       cb?.({ ok: true, queued: Boolean(res?.queued) });
     } catch (err) {
+      seenPrompts.delete(promptId); // a failed prompt may be retried
       logger.error(`[ai] prompt failed: ${err.message}`);
       cb?.({ ok: false, error: err.message });
     }

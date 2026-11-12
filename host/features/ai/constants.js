@@ -18,6 +18,9 @@ export function claudeBin() {
 export const ATTACH_MAX_CHUNKS = 64;
 export const ATTACH_MAX_PENDING = 16;
 
+// A client re-sends a prompt after a reconnect; remembered ids keep a prompt whose ack was lost from running twice.
+export const PROMPT_DEDUPE_TTL_MS = 2 * 60 * 1000;
+
 export const AI_SOCKET_EVENTS = {
   CREATE: "ai:create",
   PEEK_SEQ: "ai:peekSeq",
